@@ -318,7 +318,7 @@ final class AdapterTargetRegistry {
 
     static AdapterTarget linuxAudioBufferFenceTarget() {
         return new AdapterTarget("linux-pcm-upload-lifetime-0.98a-rc8",
-                LinuxAudioBufferFencePlan.TARGET, LinuxAudioBufferFencePlan.SHA256, PreparedAudioRuntime.PLAN_ID,
+                LinuxAudioBufferFencePlan.TARGET, LinuxAudioBufferFencePlan.SHA256, LinuxAudioBufferFencePlan.PLAN_ID,
                 List.of(new AdapterTarget.RequiredMethod(LinuxAudioBufferFencePlan.METHOD,
                         LinuxAudioBufferFencePlan.DESCRIPTOR)),
                 "STARSECTOR_CORE", "fs.sound_obf.jar",
@@ -2854,7 +2854,7 @@ final class AdapterTargetRegistry {
         // the original decoder rather than composing the experimental chunk-copy branch.
         return withoutPlans(Set.of(WindowsPcmCopyRuntime.PLAN_ID))
                 .withTarget(preparedAudioTarget()).withTarget(windowsPreparedAudioTarget())
-                .withTarget(linuxPreparedAudioTarget()).withTarget(linuxAudioBufferFenceTarget());
+                .withTarget(linuxPreparedAudioTarget());
     }
 
     AdapterTargetRegistry withGraphicsLibCompactReplayTarget() {
@@ -3223,6 +3223,7 @@ final class AdapterTargetRegistry {
                 .withTarget(indEvoWonderSyntheticMarketTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
+                .withTarget(linuxAudioBufferFenceTarget())
                 .withTarget(ashLibVariantRepositoryTarget())
                 .withTarget(ashLibVariantLookupTarget())
                 .withTarget(ashLibShipJsonTarget())
