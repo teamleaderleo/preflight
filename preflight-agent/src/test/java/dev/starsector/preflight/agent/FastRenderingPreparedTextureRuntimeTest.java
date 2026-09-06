@@ -50,6 +50,30 @@ class FastRenderingPreparedTextureRuntimeTest {
         carrier.buffer.get(found);
         assertArrayEquals(pixels, found);
         assertTrue(FastRenderingPreparedTextureRuntime.supported(texture));
+        assertTrue(FastRenderingPreparedTextureRuntime.supportedPort(texture));
+        PreparedTexture transparent = new PreparedTexture("4".repeat(64),
+                PreparedTexture.Transformation.IDENTITY, 1, 1, 1, 1, 4,
+                0, 0, 0, new byte[4]);
+        assertFalse(FastRenderingPreparedTextureRuntime.supportedPort(transparent));
+
+        var port = (com.genir.renderer.overrides.loading.textures.TextureData)
+                FastRenderingPreparedTextureRuntime.createCarrier(
+                        ResourceHandle.class.getClassLoader(), texture, true);
+        assertEquals(2, port.imageWidth);
+        assertEquals(1, port.imageHeight);
+        assertEquals(carrier.width, port.width);
+        assertEquals(carrier.height, port.height);
+        assertEquals(carrier.mean, port.mean);
+        assertEquals(carrier.weighted, port.weighted);
+        assertEquals(carrier.median, port.median);
+        org.junit.jupiter.api.Assertions.assertNull(port.ddsImagePath);
+        assertTrue(port.buffer.isReadOnly());
+        byte[] portPixels = new byte[port.buffer.remaining()];
+        port.buffer.get(portPixels);
+        assertArrayEquals(pixels, portPixels);
+        // Carrier shape cache must not confuse two releases in the same class loader.
+        assertTrue(FastRenderingPreparedTextureRuntime.createCarrier(
+                ResourceHandle.class.getClassLoader(), texture) instanceof TextureData);
     }
 
     @Test

@@ -237,6 +237,21 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget fastRenderingPortPreparedTextureTarget(boolean mac) {
+        return new AdapterTarget(
+                "fast-rendering-0.8.7-port-prepared-textures-" + (mac ? "mac" : "linux"),
+                FastRenderingPreparedTexturePlan.PORT_CLASS,
+                FastRenderingPreparedTexturePlan.PORT_SHA256,
+                FastRenderingPreparedTextureRuntime.PORT_PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FastRenderingPreparedTexturePlan.TARGET_METHOD,
+                        FastRenderingPreparedTexturePlan.PORT_DESCRIPTOR)),
+                "FAST_RENDERING", "fr.jar",
+                mac ? "146898b0581ba0d2682c534d1af59cacc5e18ff0a6515191b6736dffbd65bc8d"
+                        : "923b625f7df25424efe74eb552f1f5e86b74845edeec0075a5e0a4db56dbbeec",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader", "app");
+    }
+
     /**
      * The resource resolver every load in the game goes through, game code and mod code alike.
      *
@@ -3141,7 +3156,11 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withFastRenderingPreparedTextureTarget() {
-        return withTarget(fastRenderingPreparedTextureTarget());
+        AdapterTargetRegistry registry = withTarget(fastRenderingPreparedTextureTarget());
+        return FastRenderingPreparedTextureRuntime.portReady()
+                ? registry.withTarget(fastRenderingPortPreparedTextureTarget(false))
+                        .withTarget(fastRenderingPortPreparedTextureTarget(true))
+                : registry;
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

@@ -13,6 +13,10 @@ final class AdapterTransformationRegistry {
         if (!AdapterPlanControl.allows(target.planId())) {
             return null;
         }
+        if (FastRenderingPreparedTextureRuntime.PORT_PLAN_ID.equals(target.planId())) {
+            return FastRenderingPreparedTextureRuntime.portReady()
+                    ? FastRenderingPreparedTexturePlan.transformPort(signature, originalBytes) : null;
+        }
         if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(target.planId())) {
             return FastRenderingPreparedTextureRuntime.ready()
                     ? FastRenderingPreparedTexturePlan.transform(signature, originalBytes)
@@ -907,6 +911,9 @@ final class AdapterTransformationRegistry {
         }
         if (AssetProgressLogRuntime.PLAN_ID.equals(planId)) {
             return AssetProgressLogRuntime.suppress();
+        }
+        if (FastRenderingPreparedTextureRuntime.PORT_PLAN_ID.equals(planId)) {
+            return FastRenderingPreparedTextureRuntime.portReady();
         }
         if (FastRenderingPreparedTextureRuntime.PLAN_ID.equals(planId)) {
             return FastRenderingPreparedTextureRuntime.ready();

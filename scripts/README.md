@@ -15,6 +15,22 @@ archives without extracting or executing them. Matching bytes establish identity
 compatibility or performance. A mismatch requires review; do not automatically refresh the lock.
 Run its fixtures with `python3 -m unittest discover -s scripts -p test_check_fast_rendering_port.py`.
 
+The reviewed 0.8.7 port has a separate experimental prepared-texture bridge. It requires both
+`-Dpreflight.texture.fastRenderingPrepared=true` and
+`-Dpreflight.texture.fastRenderingPortPrepared=true`, a ready prepared store, and the pinned
+Mac or Linux `fr.jar` plus exact class/loader identity. It remains off by default. DDS winners,
+blacklisted images, AlphaAdder, padded/transformed layouts, and images containing zero alpha keep
+the original port loader. The last restriction preserves a known integer-ARGB scanline discrepancy
+in the release; the prepared cache does not record ImageIO's decoded image type.
+
+For local archive verification, place the reviewed JARs at `DIRECTORY/linux/fr.jar` and
+`DIRECTORY/mac/fr.jar`. Run `./mvnw -Dtest=FastRenderingPreparedTextureInstalledAdapterIT
+-Dsurefire.failIfNoSpecifiedTests=false -Dpreflight.fastRendering.portDirectory=DIRECTORY verify`
+for structural/carrier checks. Pixel parity runs with
+`./mvnw -Dit.test=FastRenderingPortPixelParityIT -Dpreflight.fastRendering.portDirectory=DIRECTORY
+-Dpreflight.fastRendering.lwjglJar=PATH_TO_INSTALLED_LWJGL_JAR verify`.
+These opt-in checks read local renderer/game libraries without starting the game or creating GL.
+
 ## Synchronize repeated project facts
 
 | | |

@@ -24,6 +24,11 @@ final class FastRenderingPreparedTexturePlan {
             "(Ljava/lang/String;Ljava/lang/String;)Lcom/genir/renderer/overrides/loading/TextureData;";
     static final String SOURCE_SHA256 =
             "dea3ea3d0fd7437d4a7945fee65f741d9b72d3fec565b9c4807aea479ce56144";
+    static final String PORT_CLASS = "com/genir/renderer/overrides/loading/textures/TextureLoader";
+    static final String PORT_SHA256 =
+            "dee92a93ce9eda6d3facb84e044b28ac09addc55f9fed81e7ce2f6a90a7cb3e0";
+    static final String PORT_DATA = "com/genir/renderer/overrides/loading/textures/TextureData";
+    static final String PORT_DESCRIPTOR = "(Ljava/lang/String;Ljava/lang/String;)L" + PORT_DATA + ";";
 
     private static final String DATA = "com/genir/renderer/overrides/loading/TextureData";
     private static final String DDS = "com/genir/renderer/overrides/loading/DDSCache";
@@ -42,36 +47,56 @@ final class FastRenderingPreparedTexturePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(TARGET_METHOD, TARGET_DESCRIPTOR)) {
+        return transform(signature, originalBytes, false);
+    }
+
+    static byte[] transformPort(ClassSignature signature, byte[] originalBytes) {
+        return transform(signature, originalBytes, true);
+    }
+
+    private static byte[] transform(ClassSignature signature, byte[] originalBytes, boolean port) {
+        String descriptor = port ? PORT_DESCRIPTOR : TARGET_DESCRIPTOR;
+        String data = port ? PORT_DATA : DATA;
+        String runtimeMethod = port ? "loadPort" : "load";
+        if (!(port ? PORT_CLASS : TARGET_CLASS).equals(signature.internalName())
+                || !signature.hasMethod(TARGET_METHOD, descriptor)) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        MethodNode method = uniqueMethod(owner, TARGET_METHOD, TARGET_DESCRIPTOR);
+        MethodNode method = uniqueMethod(owner, TARGET_METHOD, descriptor);
         TypeInsnNode decodeStart = uniqueNew(method, BUFFERED_INPUT);
         if (method == null
                 || decodeStart == null
-                || calls(method, DDS, DDS_METHOD) != 1
+                || calls(method, port ? "com/genir/renderer/overrides/loading/textures/DDSIntegration" : DDS, DDS_METHOD) != 1
                 || calls(method, IMAGE_IO, IMAGE_READ) != 1
-                || calls(method, BUILDER, ANALYZE) != 1
-                || calls(method, RUNTIME, "load") != 0) {
+                || calls(method, port ? "com/genir/renderer/overrides/loading/textures/TextureBuilder" : BUILDER, ANALYZE) != 1
+                || calls(method, RUNTIME, runtimeMethod) != 0
+                || (port && !hasPortPolicyLocal(method))) {
             return null;
         }
 
         LabelNode fallback = new LabelNode();
+        LabelNode decode = new LabelNode();
         InsnList shortcut = new InsnList();
+        if (port) {
+            // The reviewed class stores Blacklist.doNotModify in local 3. Preserve its
+            // power-of-two policy by keeping the entire original decoder for those images.
+            shortcut.add(new VarInsnNode(Opcodes.ILOAD, 3));
+            shortcut.add(new JumpInsnNode(Opcodes.IFNE, decode));
+        }
         shortcut.add(new VarInsnNode(Opcodes.ALOAD, 0));
         shortcut.add(new VarInsnNode(Opcodes.ALOAD, 1));
         shortcut.add(new VarInsnNode(Opcodes.ALOAD, 2));
         shortcut.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "load", RUNTIME_DESCRIPTOR, false));
+                Opcodes.INVOKESTATIC, RUNTIME, runtimeMethod, RUNTIME_DESCRIPTOR, false));
         shortcut.add(new InsnNode(Opcodes.DUP));
         shortcut.add(new JumpInsnNode(Opcodes.IFNULL, fallback));
-        shortcut.add(new TypeInsnNode(Opcodes.CHECKCAST, DATA));
+        shortcut.add(new TypeInsnNode(Opcodes.CHECKCAST, data));
         shortcut.add(new InsnNode(Opcodes.ARETURN));
         shortcut.add(fallback);
         shortcut.add(new InsnNode(Opcodes.POP));
+        shortcut.add(decode);
         method.instructions.insertBefore(decodeStart, shortcut);
 
         ClassWriter writer = new SafeClassWriter(
@@ -79,6 +104,24 @@ final class FastRenderingPreparedTexturePlan {
         owner.accept(writer);
         FastRenderingPreparedTextureRuntime.installed();
         return writer.toByteArray();
+    }
+
+    private static boolean hasPortPolicyLocal(MethodNode method) {
+        int matches = 0;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && call.getOpcode() == Opcodes.INVOKESTATIC
+                    && call.owner.equals("com/genir/renderer/overrides/loading/textures/Blacklist")
+                    && call.name.equals("doNotModify")
+                    && call.desc.equals("(Ljava/lang/String;)Z")) {
+                AbstractInsnNode next = call.getNext();
+                while (next != null && next.getOpcode() < 0) next = next.getNext();
+                if (!(next instanceof VarInsnNode store)
+                        || store.getOpcode() != Opcodes.ISTORE || store.var != 3) return false;
+                matches++;
+            }
+        }
+        return matches == 1;
     }
 
     private static MethodNode uniqueMethod(ClassNode owner, String name, String descriptor) {
