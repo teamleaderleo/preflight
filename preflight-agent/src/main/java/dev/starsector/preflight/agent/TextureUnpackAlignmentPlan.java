@@ -14,7 +14,7 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Matches the reviewed Windows upload body; unknown buffers retain the original GL state. */
+/** Matches the reviewed Windows and Linux upload bodies; unknown buffers retain the original GL state. */
 final class TextureUnpackAlignmentPlan {
     private static final String GL = "org/lwjgl/opengl/GL11";
     private static final String RUNTIME = "dev/starsector/preflight/agent/TexturePreparedPixelRuntime";
@@ -25,7 +25,10 @@ final class TextureUnpackAlignmentPlan {
     private TextureUnpackAlignmentPlan() { }
 
     static List<MethodNode> apply(ClassSignature signature, List<MethodNode> methods) {
-        if (!TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())) return List.of();
+        if (!TexturePreparedResourceLoaderPlan.WINDOWS_SHA256.equals(signature.sha256())
+                && !AdapterTargetRegistry.linuxTexturePreparedPixelTarget().sha256().equals(signature.sha256())) {
+            return List.of();
+        }
         List<MethodNode> helpers = new ArrayList<>();
         for (MethodNode method : methods) {
             List<MethodInsnNode> calls = new ArrayList<>();

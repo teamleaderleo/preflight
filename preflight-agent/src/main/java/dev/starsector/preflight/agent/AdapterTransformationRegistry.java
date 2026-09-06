@@ -277,6 +277,9 @@ final class AdapterTransformationRegistry {
             return resourceResolverPlans(signature, originalBytes);
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
+            if (LinuxAudioBufferFencePlan.TARGET.equals(signature.internalName())) {
+                return PreparedAudioRuntime.ready() ? LinuxAudioBufferFencePlan.transform(signature, originalBytes) : null;
+            }
             return PreparedAudioRuntime.ready()
                     ? (WindowsPcmCopyPlan.TARGET.equals(signature.internalName())
                             ? PreparedAudioPlan.transformWindows(signature, originalBytes)
