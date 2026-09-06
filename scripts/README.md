@@ -118,7 +118,7 @@ reviewed native fixture. Set `-Dpreflight.texture.preparedStaging=false` or
 The compiler memo retains source discovery and class definition, lives only with the current
 loader, and does not enable persistent bytecode replay.
 
-Windows can now bake and serve prepared sound effects through the exact installed decoder:
+Windows and Linux can bake and serve prepared sound effects through their exact installed decoders:
 
 ```powershell
 java -jar preflight.jar audio prepare --game 'C:\Games\Starsector'
@@ -127,7 +127,10 @@ java -jar preflight.jar audio prepare --game 'C:\Games\Starsector'
 Use `--cache <directory>` if the installation uses a custom Preflight cache, and `--java <path>`
 to select the game's compatible Java explicitly. Preparation is separate from the startup clock;
 the reviewed profile baked 2,049 effects (1.23 GB PCM) in 45.4 seconds. Music streaming is unchanged.
-Recommended launches use the cache automatically. With a validated audio manifest, Windows
+Recommended launches use the cache automatically. Linux requires the reviewed 0.98a-RC8 sound
+archive and preserves original decoding for unknown streams or unavailable entries. Use
+`audio prepare --game /path/to/starsector` on Linux; music streaming and OpenAL registration stay
+in the original game. With a validated audio manifest, Windows
 Recommended also enables exact prestart texture admission and faction priority replay. Without
 that manifest, the earlier startup policy remains. The
 [Windows prepared-audio evidence](../docs/evidence/2026-09-05-windows-prepared-audio.md) records

@@ -18,6 +18,15 @@ class PreparedAudioPlanTest {
     private static final String RUNTIME = "dev/starsector/preflight/agent/PreparedAudioRuntime";
 
     @Test
+    void linuxRequiresExactDecoderBytes() throws Exception {
+        byte[] unknown = fixture("sound/J");
+        assertNull(PreparedAudioPlan.transformLinux(ClassSignature.parse(unknown), unknown));
+        var registry = AdapterTargetRegistry.empty().withPreparedAudioTarget();
+        assertEquals(1, registry.targets().stream()
+                .filter(t -> t.id().equals("linux-ogg-decoder-0.98a-rc8-prepared-audio")).count());
+    }
+
+    @Test
     void windowsRequiresExactBytesAndPreparedCacheTakesPrecedenceOverChunkCopy() throws Exception {
         byte[] unknown = fixture("sound/O0oO");
         assertNull(PreparedAudioPlan.transformWindows(ClassSignature.parse(unknown), unknown));

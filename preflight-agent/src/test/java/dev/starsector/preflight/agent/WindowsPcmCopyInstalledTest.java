@@ -78,6 +78,9 @@ class WindowsPcmCopyInstalledTest {
     }
 
     static URLClassLoader loader(URL[] urls, byte[] decoder) {
+        return loader(urls, decoder, "sound.O0oO");
+    }
+    static URLClassLoader loader(URL[] urls, byte[] decoder, String decoderName) {
         return new URLClassLoader(urls, WindowsPcmCopyInstalledTest.class.getClassLoader()) {
             @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                 if (!name.startsWith("sound.") && !name.startsWith("com.jcraft.")
@@ -93,13 +96,16 @@ class WindowsPcmCopyInstalledTest {
                 return name.startsWith("sound/") ? findResource(name) : super.getResource(name);
             }
             @Override protected Class<?> findClass(String name) throws ClassNotFoundException {
-                if (name.equals("sound.O0oO")) return defineClass(name, decoder, 0, decoder.length);
+                if (name.equals(decoderName)) return defineClass(name, decoder, 0, decoder.length);
                 return super.findClass(name);
             }
         };
     }
     static Pcm decode(ClassLoader loader, InputStream input) throws Exception {
-        Class<?> type = Class.forName("sound.O0oO", true, loader);
+        return decode(loader, input, "sound.O0oO");
+    }
+    static Pcm decode(ClassLoader loader, InputStream input, String decoderName) throws Exception {
+        Class<?> type = Class.forName(decoderName, true, loader);
         Object result = type.getMethod("super", InputStream.class).invoke(type.getConstructor().newInstance(), input);
         Class<?> shape = result.getClass();
         ByteBuffer buffer = (ByteBuffer) shape.getField("Object").get(result);

@@ -59,11 +59,15 @@ final class GameAudioDecoder {
                 "4b28c09ee5004a353ea2f0d61611eb4c7e0504abfc7b1f5328d6a7123f7f72b7")
                 && exactClass(game, "sound/G.class",
                         "c7dbba1261cfba676dba014709c68e10563c3d06b0e8b5e664a5c1d2ee5e6616");
+        boolean linux = exactClass(game, "sound/J.class",
+                "b079051dc57de2708ad8c249b35b35469d3dc6cabbb255afdbfb713ea6bbaf8c")
+                && exactClass(game, "sound/F.class",
+                        "5d03d4031ee2b7cac51ec6838730b91824489128fd3b538bcb41d2f6208b13e2");
         Class<?> decoderClass = Class.forName(windows ? "sound.O0oO" : DECODER_CLASS, true, game);
         Class<?> resultClass = Class.forName(windows ? "sound.G" : RESULT_CLASS, true, game);
         return new GameAudioDecoder(
                 decoderClass,
-                decoderClass.getMethod(windows ? "super" : DECODE_METHOD, InputStream.class),
+                decoderClass.getMethod(windows || linux ? "super" : DECODE_METHOD, InputStream.class),
                 resultClass.getField(CHANNELS_FIELD),
                 resultClass.getField(PCM_FIELD),
                 resultClass.getField(RATE_FIELD));

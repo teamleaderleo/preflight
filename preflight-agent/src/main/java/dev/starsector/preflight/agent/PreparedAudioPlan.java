@@ -40,12 +40,23 @@ final class PreparedAudioPlan {
     private static final String RUNTIME_DESCRIPTOR = "(Ljava/lang/Object;Ljava/io/InputStream;"
             + "Ljava/lang/invoke/MethodHandle;)Ljava/lang/Object;";
 
+    static final String LINUX_SHA256 =
+            "b079051dc57de2708ad8c249b35b35469d3dc6cabbb255afdbfb713ea6bbaf8c";
+
     private PreparedAudioPlan() {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         return transform(signature, originalBytes, TARGET_CLASS, DECODE_METHOD, DECODE_DESCRIPTOR,
                 RESULT_CLASS, "decode");
+    }
+
+    static byte[] transformLinux(ClassSignature signature, byte[] originalBytes) {
+        if (!LINUX_SHA256.equals(dev.starsector.preflight.core.Hashes.sha256(originalBytes))) {
+            return null;
+        }
+        return transform(signature, originalBytes, TARGET_CLASS, "super", DECODE_DESCRIPTOR,
+                RESULT_CLASS, "decodeLinux");
     }
 
     static byte[] transformWindows(ClassSignature signature, byte[] originalBytes) {
