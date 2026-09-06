@@ -408,7 +408,9 @@ export default function App() {
               setForceStopAvailable(false);
               setMaintenanceEpoch((epoch) => epoch + 1);
               setStatus("ready");
-              void Promise.all([refresh(), refreshCache()]).then(([refreshed]) => {
+              // Recovery outlives the initial render. Refresh the current remembered selection;
+              // rediscovery would discard a valid installation outside the default locations.
+              void Promise.all([refresh(readLastInstallRoot() ?? undefined), refreshCache()]).then(([refreshed]) => {
                 if (refreshed) announceGame("Starsector closed. The run report is ready.", "success");
               });
             },

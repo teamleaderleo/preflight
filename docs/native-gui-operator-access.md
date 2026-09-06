@@ -24,14 +24,21 @@ does not verify installation selection: Preflight must reach Ready with that ins
 
 Build with the repository's Node version and the normal `npm run desktop:build` command in
 `preflight-desktop`. Noninteractive SSH may need `/home/leo/.cargo/bin` added to PATH. The Debian
-package installs `/usr/bin/starsector-preflight-desktop`. Starting it through a transient user
-service uses the existing graphical session environment:
+package installs `/usr/bin/starsector-preflight-desktop`. For launch/exit/recovery acceptance,
+open the installed Preflight application from GNOME's application grid. Its application scope
+allows the game to outlive the GUI. Starting it through a transient user service is suitable
+only for bounded rendering/settings checks:
 
 ```sh
 systemd-run --user --unit=preflight-gui-audit /usr/bin/starsector-preflight-desktop
 # At the end of the observation:
 systemctl --user stop preflight-gui-audit
 ```
+
+A default systemd service uses `KillMode=control-group`: when its GUI exits, systemd also
+terminates the child game. Do not interpret that service-induced exit as a product recovery
+failure or use it to verify the normal close-and-reopen contract. Record the process cgroup
+when investigating an unexpected child exit. The 2026-09-06 audit preserved this excluded case.
 
 On Big Red, the AppImage bundler needs the same environment already used by desktop CI. The
 2026-09-06 local failure first lacked `libfuse.so.2`, then could not resolve the bundled

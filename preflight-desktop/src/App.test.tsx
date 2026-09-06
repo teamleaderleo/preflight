@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { failedRunSummary } from "./uiFormat";
 import { adapterHealthLine } from "./adapterHealthText";
-import { HOME_OPTIONS_STORAGE_KEY } from "./desktopStorage";
+import { HOME_OPTIONS_STORAGE_KEY, rememberLastInstallRoot, readLastInstallRoot } from "./desktopStorage";
 import { isCurrentProfilePrepared, preparationModeMatchesStorage } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings, RunStateEvent, StopGameResult } from "./types";
@@ -60,6 +60,36 @@ test("Linux fullscreen help leads to the game settings without changing the draf
     expect(await screen.findByRole("heading", { level: 1, name: "Game settings" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();
   } finally {
+    snapshot.mockRestore();
+  }
+});
+
+test("recovered game completion preserves a manually selected installation", async () => {
+  const gameRoot = "/home/leo/Games/starsector-0.98a-RC8";
+  const initial = await bridge.getBootstrapSnapshot();
+  const idle = await bridge.getOperationState();
+  const selected = { ...initial, selected: { ...initial.selected!, installRoot: gameRoot } };
+  rememberLastInstallRoot(gameRoot);
+  let running = true;
+  const host = vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  const nativeListen = vi.mocked(listen).mockResolvedValue(() => undefined);
+  const operations = vi.spyOn(bridge, "getOperationState").mockImplementation(async () => ({
+    ...idle, gamePid: running ? 812 : null, gameRecovered: running,
+  }));
+  const snapshot = vi.spyOn(bridge, "getSnapshot").mockImplementation(async (game) =>
+    game === gameRoot ? selected : { ...initial, ready: false, selected: null });
+  try {
+    render(<App />);
+    await screen.findByRole("heading", { name: "Running", level: 1 });
+    await waitFor(() => expect(snapshot).toHaveBeenCalledWith(gameRoot));
+    running = false;
+    await screen.findByRole("heading", { name: "Ready", level: 1 }, { timeout: 4_000 });
+    expect(snapshot).toHaveBeenLastCalledWith(gameRoot);
+    expect(readLastInstallRoot()).toBe(gameRoot);
+  } finally {
+    host.mockRestore();
+    nativeListen.mockReset();
+    operations.mockRestore();
     snapshot.mockRestore();
   }
 });
