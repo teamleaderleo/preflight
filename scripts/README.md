@@ -84,6 +84,12 @@ scripts/run-big-red-windows-startup-cohort.sh \
   --condition preflight-fast-rendering --iterations 1
 ```
 
+Use `--condition all --iterations 3 --cooldown-seconds 20` for three shuffled repetitions of
+stock Starsector, Preflight, Fast Rendering, and Preflight plus Fast Rendering. The same game-log
+VRAM completion clock is available in all four arms; interactive-menu timestamps require Preflight
+and are reported separately. Native/other-driver arms use `starsector-core/starsector.bat` directly,
+since the legacy `Play-Starsector-VM.cmd` shortcut forces llvmpipe regardless of the environment.
+
 If the current guest runner exits without publishing `summary.json`, the host still archives its
 raw session and reports `accepted=false`, `incomplete=true`; it returns failure and invents no
 startup timing. The stale-session guard remains in force.

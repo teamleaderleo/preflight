@@ -50,7 +50,7 @@ windows_disable_backslash_merged_read_keys=false
 usage() {
     cat <<'EOF'
 Usage: run-big-red-windows-startup-cohort.sh [options]
-  --condition NAME       One condition accepted by run-windows-startup-cohort.ps1 (default: preflight)
+  --condition NAME       One condition, or all for the shuffled stock/Preflight/Fast Rendering 2x2 (default: preflight)
   --iterations N         1-20 (default: 1)
   --cooldown-seconds N   0-600 (default: 0)
   --preset NAME          recommended or conservative (default: recommended)
@@ -139,7 +139,7 @@ if [[ "$windows_initial_heap_probe" == true && "$disable_windows_initial_heap_pr
 fi
 
 case "$condition" in
-    starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
+    all|starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
     *) echo "Unsupported condition: $condition" >&2; exit 2 ;;
 esac
 [[ "$iterations" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "Iterations must be 1-20" >&2; exit 2; }
@@ -329,6 +329,8 @@ jvm_native_memory_summary_arg=""
 [[ "$jvm_native_memory_summary" == true ]] && jvm_native_memory_summary_arg=" -JvmNativeMemorySummary"
 prepared_load_attribution_arg=""
 [[ "$prepared_load_attribution" == true ]] && prepared_load_attribution_arg=" -PreparedLoadAttribution"
+condition_arg=" -Conditions $condition"
+[[ "$condition" == all ]] && condition_arg=""
 texture_upload_checkpoint_arg=""
 [[ "$texture_upload_checkpoint" == true ]] && texture_upload_checkpoint_arg=" -TextureUploadProbe -TextureUploadCheckpoint"
 windows_pcm_copy_arg=""
@@ -366,7 +368,7 @@ resolution_arg=""
 [[ -n "$resolution" ]] && resolution_arg=" -Resolution $resolution"
 run_ps=$(cat <<EOF
 \$script = "$guest_repo\\scripts\\run-windows-startup-cohort.ps1"
-\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown -Conditions $condition -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$windows_prepared_prestart_arg$windows_prepared_staging_arg$windows_pcm_copy_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
+\$args = '-NoProfile -ExecutionPolicy Bypass -File "' + \$script + '" -PreflightJar "$guest_jar" -Iterations $iterations -CooldownSeconds $cooldown$condition_arg -OptimizationPreset $preset -GalliumDriver $gallium_driver$resolution_arg$windows_prepared_resources_arg$windows_disable_prepared_resources_arg$windows_prepared_resource_claims_arg$windows_disable_prepared_resource_claims_arg$windows_prepared_byte_barrier_arg$windows_disable_prepared_byte_barrier_arg$windows_prepared_prestart_arg$windows_prepared_staging_arg$windows_pcm_copy_arg$texture_upload_checkpoint_arg$windows_prefetch_drain_arg$windows_initial_heap_arg$jvm_native_memory_summary_arg$prepared_load_attribution_arg$prepared_pack_read_ahead_arg$prepared_pack_order_snapshot_arg$faction_priority_arg$startup_phase_arg$startup_texture_cpu_arg$display_thread_texture_arg$display_thread_spec_store_arg$spec_store_texture_overlap_arg$windows_backslash_merged_read_keys_arg$windows_disable_backslash_merged_read_keys_arg'
 Set-ScheduledTask -TaskName "$task" -Action (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument \$args) | Out-Null
 Start-ScheduledTask -TaskName "$task"
 Start-Sleep -Seconds 2

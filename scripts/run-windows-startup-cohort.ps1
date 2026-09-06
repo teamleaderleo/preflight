@@ -363,8 +363,8 @@ log4j.appender.file.layout.ConversionPattern=%-4r [%t] %-5p %c %x - %m%n
 log4j.appender.file.MaxFileSize=50000KB
 log4j.appender.file.MaxBackupIndex=3
 '@ | Set-Content -LiteralPath $logConfiguration -Encoding ASCII
-    $logConfigurationUri = 'file:///' + ($logConfiguration -replace '\\', '/')
-    $quietLogOptions = "-Dlog4j.configuration=$logConfigurationUri -Dpreflight.assetProgressLogs=off"
+    $logConfigurationUri = ([System.Uri]$logConfiguration).AbsoluteUri
+    $quietLogOptions = "-Dlog4j.configuration=$logConfigurationUri"
     $env:_JAVA_OPTIONS = (($savedPrivateJavaOptions, $directLaunchOptions | Where-Object { $_ }) -join ' ').Trim()
     $env:JAVA_TOOL_OPTIONS = $savedJavaToolOptions
     if (-not $usesPreflight) {
@@ -733,7 +733,9 @@ if (-not (Test-Path -LiteralPath $PreflightJar -PathType Leaf)) { throw "Preflig
 $java = (Get-Command java.exe -ErrorAction SilentlyContinue).Source
 if (-not $java) { $java = Join-Path $Game 'jre\bin\java.exe' }
 $vanillaLauncher = Join-Path $Game 'Play-Starsector-VM.cmd'
-if (-not (Test-Path -LiteralPath $vanillaLauncher)) {
+# The VM shortcut forces llvmpipe internally, overriding the caller's environment.
+# Native/other-driver arms must invoke the underlying stock launcher instead.
+if ($GalliumDriver -ne 'llvmpipe' -or -not (Test-Path -LiteralPath $vanillaLauncher)) {
     $vanillaLauncher = Join-Path $Game 'starsector-core\starsector.bat'
 }
 $fastRenderingLauncher = Join-Path $Game 'starsector-core\fr.bat'
