@@ -2,6 +2,9 @@
 
 Check this index before writing a new script or driving the game by hand.
 
+For native GUI checks, [Native GUI operator access](../docs/native-gui-operator-access.md) records
+the verified SSH/RDP/Moonlight routes, installation locations, and runtime shared-GPU handover.
+
 ## Synchronize repeated project facts
 
 | | |
