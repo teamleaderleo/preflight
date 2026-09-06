@@ -1,7 +1,7 @@
 use crate::child_error;
 use crate::operations::{
     OperationCoordinator, OperationState, begin_diagnostics_export,
-    refuse_report_upload_for_removal, refuse_update_install,
+    refuse_report_upload_for_removal, refuse_update_install, reserve_foreground,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -225,9 +225,8 @@ impl EngineCommand {
     ///
     /// `Command::output()` waits for the child forever. That is the right shape for the paths that
     /// own an explicit lifecycle — preparation, the game, the benchmark — but every short
-    /// request/response call here inherits it too, and several of them hold the operation
-    /// coordinator while they wait. A child that stalls therefore also holds admission state, so
-    /// shutdown and reconciliation queue behind it.
+    /// request/response call needs a deadline. Admitted foreground work holds a reservation while
+    /// waiting, leaving the coordinator mutex available for shutdown and reconciliation.
     ///
     /// The two pipes are drained on their own threads. `Command::output()` gets the same
     /// concurrency from the runtime; reading one to the end and then the other would deadlock
@@ -491,7 +490,7 @@ pub(crate) fn get_launch_settings(app: AppHandle, game: String) -> Result<Value,
     launch_settings_json(&app, &directory, None)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn update_launch_settings(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -522,9 +521,8 @@ pub(crate) fn update_launch_settings(
             "Wait for profile preparation to finish before changing launch settings.".to_string(),
         );
     }
-    let result = launch_settings_json(&app, &directory, Some(&settings));
-    drop(running);
-    result
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    launch_settings_json(&app, &directory, Some(&settings))
 }
 
 fn launch_settings_json(
@@ -607,12 +605,22 @@ pub(crate) fn get_profiles(app: AppHandle, game: String) -> Result<Value, String
     profile_json(&app, &game, &["profile", "list"], false)
 }
 
-#[tauri::command]
-pub(crate) fn save_profile(app: AppHandle, game: String, name: String) -> Result<Value, String> {
+#[tauri::command(async)]
+pub(crate) fn save_profile(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    let _operation = reserve_foreground(&app, &tracker, running)?;
     profile_json(&app, &game, &["profile", "save", name.as_str()], false)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn activate_profile(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -636,17 +644,16 @@ pub(crate) fn activate_profile(
             "Wait for profile preparation to finish before switching profiles.".to_string(),
         );
     }
-    let result = profile_json(
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    profile_json(
         &app,
         &game,
         &["profile", "activate", name.as_str(), "--yes"],
         true,
-    );
-    drop(running);
-    result
+    )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn rename_profile(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -668,7 +675,7 @@ pub(crate) fn rename_profile(
     )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn duplicate_profile(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -690,7 +697,7 @@ pub(crate) fn duplicate_profile(
     )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn delete_profile(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -736,9 +743,8 @@ fn mutate_profile_json(
             .lock()
             .map_err(|_| "The process tracker is unavailable.".to_string())?;
         validate_profile_mutation_state(&running)?;
-        let result = profile_json(app, game, &arguments, false);
-        drop(running);
-        return result;
+        let _operation = reserve_foreground(app, tracker, running)?;
+        return profile_json(app, game, &arguments, false);
     }
     profile_json(app, game, &arguments, false)
 }
@@ -967,10 +973,11 @@ pub(crate) fn get_cache_health(
             "Wait for profile preparation to finish before inspecting prepared data.".to_string(),
         );
     }
+    let _operation = reserve_foreground(&app, &tracker, running)?;
     cache_health_json(&app, &game, None)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn repair_cache(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -982,9 +989,8 @@ pub(crate) fn repair_cache(
         .lock()
         .map_err(|_| "The process tracker is unavailable.".to_string())?;
     validate_cache_repair_state(&running)?;
-    let result = cache_health_json(&app, &game, Some(&expected_profile));
-    drop(running);
-    result
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    cache_health_json(&app, &game, Some(&expected_profile))
 }
 
 pub(crate) fn validate_cache_repair_state(state: &OperationState) -> Result<(), String> {
@@ -1009,9 +1015,12 @@ fn cache_health_json(
     let paths = EnginePaths::resolve(app)?;
     let mut command = paths.command();
     configure_cache_health_command(&mut command, &directory, expected_profile);
-    let output = command
-        .read_output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    let output = if expected_profile.is_some() {
+        command.output_within(MUTATION_BUDGET)
+    } else {
+        command.read_output()
+    }
+    .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
             if expected_profile.is_some() {
@@ -1049,7 +1058,7 @@ pub(crate) fn get_cache_cleanup(app: AppHandle, game: String) -> Result<Value, S
     cache_cleanup_json(&app, &game, false)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn apply_cache_cleanup(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -1068,12 +1077,11 @@ pub(crate) fn apply_cache_cleanup(
             "Wait for profile preparation to finish before cleaning acceleration data.".to_string(),
         );
     }
-    let result = cache_cleanup_json(&app, &game, true);
-    drop(running);
-    result
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    cache_cleanup_json(&app, &game, true)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn apply_discardable_cache_cleanup(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -1091,13 +1099,13 @@ pub(crate) fn apply_discardable_cache_cleanup(
             "Wait for profile preparation to finish before cleaning acceleration data.".to_string(),
         );
     }
+    let _operation = reserve_foreground(&app, &tracker, running)?;
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
     configure_discardable_cache_cleanup_command(&mut command);
     let output = command
         .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    drop(running);
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
             "Preflight could not remove replaced cache data",
@@ -1152,7 +1160,7 @@ pub(crate) fn get_evidence_cleanup(app: AppHandle) -> Result<Value, String> {
     evidence_cleanup_json(&app, false)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn apply_evidence_cleanup(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -1170,9 +1178,8 @@ pub(crate) fn apply_evidence_cleanup(
             "Wait for profile preparation to finish before cleaning old reports.".to_string(),
         );
     }
-    let result = evidence_cleanup_json(&app, true);
-    drop(running);
-    result
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    evidence_cleanup_json(&app, true)
 }
 
 fn evidence_cleanup_json(app: &AppHandle, apply: bool) -> Result<Value, String> {
@@ -1219,7 +1226,7 @@ pub(crate) fn get_removal_plan(app: AppHandle, scope: String) -> Result<Value, S
     removal_json(&app, &scope, false)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn apply_removal(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -1239,9 +1246,8 @@ pub(crate) fn apply_removal(
         );
     }
     refuse_report_upload_for_removal(&running)?;
-    let result = removal_json(&app, &scope, true);
-    drop(running);
-    result
+    let _operation = reserve_foreground(&app, &tracker, running)?;
+    removal_json(&app, &scope, true)
 }
 
 fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, String> {
@@ -1305,13 +1311,18 @@ pub(crate) fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
     Ok(destination)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn export_diagnostics(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
     output: String,
 ) -> Result<Value, String> {
     let _export = begin_diagnostics_export(&tracker.0)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    let _operation = reserve_foreground(&app, &tracker, running)?;
     let destination = diagnostic_output_path(&output)?;
     export_diagnostics_to(&app, destination)
 }

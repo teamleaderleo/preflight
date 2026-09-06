@@ -4,6 +4,8 @@ import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -38,6 +40,7 @@ final class StopCommand {
         boolean json = false;
         boolean force = false;
         boolean dryRun = false;
+        boolean userRequested = false;
         Long requestedPid = null;
         int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
         for (int index = offset; index < args.length; index++) {
@@ -45,6 +48,7 @@ final class StopCommand {
             switch (argument) {
                 case "--json" -> json = true;
                 case "--force" -> force = true;
+                case "--user-requested" -> userRequested = true;
                 case "--dry-run" -> dryRun = true;
                 case "--pid" -> {
                     if (requestedPid != null) {
@@ -74,7 +78,7 @@ final class StopCommand {
                 stopped.add(outcome(record, "would-stop", null));
                 continue;
             }
-            stopped.add(stop(record, timeoutSeconds, force));
+            stopped.add(stop(record, timeoutSeconds, force, userRequested));
         }
 
         Map<String, Object> report = new LinkedHashMap<>();
@@ -129,9 +133,17 @@ final class StopCommand {
     }
 
     private static Map<String, Object> stop(
-            RuntimeProcessIdentity record, int timeoutSeconds, boolean force) throws Exception {
+            RuntimeProcessIdentity record, int timeoutSeconds, boolean force, boolean userRequested) throws Exception {
         ProcessHandle process = ProcessHandle.of(record.pid()).orElse(null);
         if (process == null) return outcome(record, "already-exited", null);
+        if (!record.attachable()) return outcome(record, "skipped", "process identity no longer matches");
+        if (userRequested) {
+            try {
+                writeUserStopReceipt(record);
+            } catch (IOException error) {
+                System.err.println("Could not record the requested stop: " + error.getMessage());
+            }
+        }
         Instant deadline = Instant.now().plusSeconds(timeoutSeconds);
         // destroy() is SIGTERM on Unix, so the JVM runs its shutdown hooks and Preflight's own
         // run report is finished rather than truncated. Only escalate when asked.
@@ -154,6 +166,22 @@ final class StopCommand {
         return process.isAlive()
                 ? outcome(record, "still-running", "did not exit after a forced stop")
                 : outcome(record, "forced", null);
+    }
+
+    static void writeUserStopReceipt(RuntimeProcessIdentity record) throws IOException {
+        Path receipt = record.source().resolveSibling("user-stop.requested");
+        Path temporary = Files.createTempFile(receipt.getParent(), "user-stop-", ".tmp");
+        try {
+            Files.writeString(temporary, Json.object(Map.of(
+                    "pid", record.pid(), "startedAt", record.startedAt().toString())));
+            try {
+                Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, receipt, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     private static Map<String, Object> outcome(

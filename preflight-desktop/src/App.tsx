@@ -286,7 +286,6 @@ export default function App() {
     snapshot?.selected?.installRoot,
     profilesState.profiles?.enabledMods.join("\0") ?? "unavailable",
     announceProfiles,
-    status === "running" || status === "launching" || restoringOperation || preparing,
   );
   const launchProfileName = launchProfileNameFor(
     profilesState.profiles,

@@ -22,6 +22,26 @@ class StarsectorRunLogEvidenceTest {
     Path temporaryDirectory;
 
     @Test
+    void userStopPreservesRealFailuresAndRetainsAnExplicitOutcome() throws Exception {
+        StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);
+        StarsectorRunLogEvidence.Evidence clean = StarsectorRunLogEvidence.inspect(before);
+        int stoppedExit = Platform.current() == Platform.WINDOWS ? 1 : 143;
+        assertEquals(0, RunCommand.requestedStopExitCode(stoppedExit, clean, true));
+        assertEquals("USER_STOPPED", RunCommand.runOutcome(stoppedExit, clean, true));
+        assertEquals(1, RunCommand.requestedStopExitCode(1, clean, false));
+        assertEquals("LAUNCHER_EXIT_NONZERO", RunCommand.runOutcome(1, clean, false));
+        assertEquals(23, RunCommand.requestedStopExitCode(23, clean, true));
+        assertEquals("LAUNCHER_EXIT_NONZERO", RunCommand.runOutcome(23, clean, true));
+        log(FATAL);
+        StarsectorRunLogEvidence.Evidence fatal = StarsectorRunLogEvidence.inspect(before);
+        assertTrue(fatal.fatalDetected());
+        assertEquals("FATAL_LOG_EVIDENCE", RunCommand.runOutcome(1, fatal, true));
+        assertEquals(1, RunCommand.requestedStopExitCode(1, fatal, true));
+        assertEquals(StarsectorRunLogEvidence.FATAL_LIFECYCLE_EXIT,
+                RunCommand.requestedStopExitCode(0, fatal, true));
+    }
+
+    @Test
     void detectsFatalBytesAppendedDuringRunAndOverridesZeroExit() throws Exception {
         Path log = log("0 [main] INFO com.fs.starfarer.StarfarerLauncher  - Starting\n");
         StarsectorRunLogEvidence.Snapshot before = StarsectorRunLogEvidence.snapshot(temporaryDirectory);

@@ -8,6 +8,15 @@ import org.junit.jupiter.api.Test;
 
 class PlaytimeTest {
     @Test
+    void explicitUserStopRetainsTheWholeRecordedSession() {
+        Playtime.Summary summary = Playtime.of(List.of(
+                launch("2026-08-01T10:00:00Z", 253624L, "USER_STOPPED")));
+        assertEquals(253624L, summary.totalMillis());
+        assertEquals(1, summary.launches());
+        assertEquals(0, summary.ignoredAttempts());
+    }
+
+    @Test
     void sessionsSumIntoATotalWithTheLongestKeptSeparately() {
         Playtime.Summary summary = Playtime.of(List.of(
                 launch("2026-08-01T10:00:00Z", 45 * 60_000L),

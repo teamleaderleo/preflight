@@ -202,7 +202,7 @@ fn snapshot_operation_state(tracker: &OperationCoordinator) -> Result<OperationS
 
 // Tauri maps this flat IPC boundary by argument name; wrapping it changes the renderer contract.
 #[allow(clippy::too_many_arguments)]
-#[tauri::command]
+#[tauri::command(async)]
 fn start_game(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
@@ -219,9 +219,8 @@ fn start_game(
         validate_optimization_domains(&disabled_optimization_domains)?;
     let after_launch_behavior = AfterLaunchBehavior::parse(&after_launch_behavior)?;
     let paths = EnginePaths::resolve(&app)?;
-    let launch_settings = get_launch_settings(app.clone(), game.clone())?;
 
-    let mut running = tracker
+    let running = tracker
         .0
         .lock()
         .map_err(|_| "The launch tracker is unavailable.".to_string())?;
@@ -235,6 +234,8 @@ fn start_game(
         );
     }
 
+    let operation = operations::reserve_foreground(&app, &tracker, running)?;
+    let launch_settings = get_launch_settings(app.clone(), game.clone())?;
     let mut command = paths.command();
     command
         .arg("run")
@@ -264,6 +265,13 @@ fn start_game(
     }
     command.env("PREFLIGHT_DESKTOP_EVENTS", "stderr-v1");
     command.stderr(Stdio::piped());
+    let mut running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+    if running.exit_after_cleanup {
+        return Err("Preflight is closing; Starsector was not launched.".to_string());
+    }
     let child = command
         .spawn()
         .map_err(|error| format!("Could not launch Starsector: {error}"))?;
@@ -271,6 +279,7 @@ fn start_game(
     running.game = Some(pid);
     running.game_recovered = false;
     drop(running);
+    drop(operation);
 
     let _ = app.emit(
         "run-state",
@@ -286,27 +295,38 @@ fn start_game(
     Ok(RunStarted { pid })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn stop_game(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
     force: bool,
 ) -> Result<StopGameResult, String> {
-    let pid = {
+    let (pid, _operation) = {
         let running = tracker
             .0
             .lock()
             .map_err(|_| "The launch tracker is unavailable.".to_string())?;
         refuse_update_install(&running)?;
-        running.game.ok_or_else(|| {
+        let pid = running.game.ok_or_else(|| {
             "No Starsector process started by this Preflight window is running.".to_string()
-        })?
+        })?;
+        (
+            pid,
+            operations::reserve_foreground(&app, &tracker, running)?,
+        )
     };
 
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
     command
-        .args(["stop", "--json", "--timeout-seconds", "20", "--pid"])
+        .args([
+            "stop",
+            "--json",
+            "--user-requested",
+            "--timeout-seconds",
+            "20",
+            "--pid",
+        ])
         .arg(pid.to_string());
     if force {
         command.arg("--force");
@@ -582,6 +602,7 @@ pub(crate) fn take_deferred_exit(running: &mut OperationState) -> bool {
         && running.desktop_smoke.is_none()
         && running.preparation.is_none()
         && running.report_upload.is_none()
+        && !running.foreground_operation
     {
         running.exit_after_cleanup = false;
         true
@@ -591,7 +612,7 @@ pub(crate) fn take_deferred_exit(running: &mut OperationState) -> bool {
 }
 
 fn begin_exit_cleanup(running: &mut OperationState) -> Result<bool, String> {
-    let mut pending = false;
+    let mut pending = running.foreground_operation;
     if let Some(process) = running.desktop_smoke.as_ref() {
         request_desktop_smoke_cancellation(process)?;
         pending = true;
@@ -948,6 +969,7 @@ mod tests {
             update_checking: false,
             update_installing: true,
             exit_after_cleanup: true,
+            foreground_operation: true,
         }));
 
         let snapshot = snapshot_operation_state(&coordinator).unwrap();
@@ -1027,16 +1049,17 @@ mod tests {
         );
 
         let (report_cancel, _report_cancelled) = watch::channel(false);
-        let read_only_neighbors = OperationState {
+        let mut read_only_neighbors = OperationState {
             report_upload: Some(ReportUploadProcess {
                 id: 54,
                 total_bytes: 8_192,
                 cancel: report_cancel,
             }),
-            exit_after_cleanup: true,
             ..OperationState::default()
         };
         assert!(validate_cache_repair_state(&read_only_neighbors).is_ok());
+        read_only_neighbors.exit_after_cleanup = true;
+        assert!(validate_cache_repair_state(&read_only_neighbors).is_err());
     }
 
     #[test]
@@ -1264,6 +1287,7 @@ mod tests {
             update_checking: false,
             update_installing: false,
             exit_after_cleanup: false,
+            foreground_operation: false,
         };
 
         assert!(begin_exit_cleanup(&mut running).unwrap());
