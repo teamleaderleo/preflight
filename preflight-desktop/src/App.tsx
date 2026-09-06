@@ -246,7 +246,7 @@ export default function App() {
         announceGame(result.stopped > 0 ? "Stopping Starsector…" : "Starsector has already stopped.", "success");
       }
     } catch (error) {
-      announceGame(`Couldn’t stop Starsector safely: ${error}`, "error");
+      announceGame(`Couldn’t stop Starsector: ${error}`, "error");
     } finally {
       setStoppingGame(false);
     }
@@ -280,11 +280,13 @@ export default function App() {
     refresh,
     refreshCache,
     announceProfiles,
+    status === "running" || status === "launching" || restoringOperation || preparing,
   );
   const setupCheck = useSetupCheck(
     snapshot?.selected?.installRoot,
     profilesState.profiles?.enabledMods.join("\0") ?? "unavailable",
     announceProfiles,
+    status === "running" || status === "launching" || restoringOperation || preparing,
   );
   const launchProfileName = launchProfileNameFor(
     profilesState.profiles,

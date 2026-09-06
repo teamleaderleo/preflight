@@ -25,6 +25,7 @@ export function useProfiles(
   refreshInstallation: (game?: string) => Promise<boolean>,
   refreshCache: () => Promise<void>,
   announce: Announce,
+  deferFocusRefresh = false,
 ) {
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
@@ -49,6 +50,10 @@ export function useProfiles(
   const profileNameRevision = useRef(0);
   const currentGame = useRef(game);
   currentGame.current = game;
+  const focusRefresh = useRef<{ game: string; promise: Promise<void> } | null>(null);
+  const deferredFocus = useRef<string | null>(null);
+  const deferFocusRef = useRef(deferFocusRefresh);
+  deferFocusRef.current = deferFocusRefresh;
 
   const refreshProfiles = useCallback(async () => {
     const request = ++profilesRequest.current;
@@ -136,18 +141,39 @@ export function useProfiles(
     }
   }, [game, modReadiness, refreshModReadiness, visible]);
 
-  useEffect(() => {
-    if (!game) return;
-    const refreshExternalModState = () => {
-      // A player may have changed enabled_mods.json while Preflight was in the background. Read
-      // that state again without clearing the currently painted launch identity or blocking input.
-      void refreshProfiles();
-      void refreshModReadiness();
-      void refreshCache();
+  const refreshExternalModState = useCallback(() => {
+    if (!game || currentGame.current !== game) return;
+    if (deferFocusRef.current) {
+      deferredFocus.current = game;
+      return;
+    }
+    deferredFocus.current = null;
+    if (focusRefresh.current?.game === game) return;
+    // Refocus validates real external state; share only the work already in flight, never a
+    // timestamp-based result. A later focus starts a new validation generation.
+    const generation = {
+      game,
+      promise: Promise.allSettled([
+        refreshProfiles(), refreshModReadiness(), refreshCache(),
+      ]).then(() => undefined),
     };
+    focusRefresh.current = generation;
+    void generation.promise.finally(() => {
+      if (focusRefresh.current === generation) focusRefresh.current = null;
+    });
+  }, [game, refreshCache, refreshModReadiness, refreshProfiles]);
+
+  useEffect(() => {
     window.addEventListener("focus", refreshExternalModState);
     return () => window.removeEventListener("focus", refreshExternalModState);
-  }, [game, refreshCache, refreshModReadiness, refreshProfiles]);
+  }, [refreshExternalModState]);
+
+  useEffect(() => {
+    if (deferredFocus.current !== game) deferredFocus.current = null;
+    if (!deferFocusRefresh && deferredFocus.current === game && game) {
+      refreshExternalModState();
+    }
+  }, [deferFocusRefresh, game, refreshExternalModState]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();

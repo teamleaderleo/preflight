@@ -85,3 +85,80 @@ test("a successful switch retires the old active name even when the profile refr
     activate.mockRestore();
   }
 });
+
+test("rapid focus events share one live validation and the next focus reads changed state", async () => {
+  let finish!: (value: ProfileList) => void;
+  const profiles = vi.spyOn(bridge, "getProfiles")
+    .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+    .mockResolvedValue({ ...initialProfiles, enabledMods: ["changed-externally"] });
+  const readiness = vi.spyOn(bridge, "getModReadiness");
+  const cache = vi.fn().mockResolvedValue(undefined);
+  const refresh = vi.fn().mockResolvedValue(true);
+  const announce = vi.fn();
+  try {
+    const { result } = renderHook(() => useProfiles("/Applications/Starsector", false, refresh, cache, announce));
+    act(() => {
+      for (let i = 0; i < 20; i++) window.dispatchEvent(new Event("focus"));
+    });
+    expect(profiles).toHaveBeenCalledTimes(1);
+    expect(readiness).toHaveBeenCalledTimes(1);
+    expect(cache).toHaveBeenCalledTimes(1);
+    await act(async () => finish(initialProfiles));
+    await waitFor(() => expect(result.current.modReadinessLoading).toBe(false));
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(profiles).toHaveBeenCalledTimes(2);
+    expect(cache).toHaveBeenCalledTimes(2);
+    expect(result.current.profiles?.enabledMods).toEqual(["changed-externally"]);
+  } finally {
+    profiles.mockRestore();
+    readiness.mockRestore();
+  }
+});
+
+test("focus work waits for the owned game and drains once after it exits", async () => {
+  const profiles = vi.spyOn(bridge, "getProfiles").mockResolvedValue(initialProfiles);
+  const cache = vi.fn().mockResolvedValue(undefined);
+  const refresh = vi.fn().mockResolvedValue(true);
+  const announce = vi.fn();
+  try {
+    const { rerender } = renderHook(({ active }) =>
+      useProfiles("/Applications/Starsector", false, refresh, cache, announce, active),
+    { initialProps: { active: true } });
+    act(() => {
+      for (let i = 0; i < 20; i++) window.dispatchEvent(new Event("focus"));
+    });
+    expect(profiles).not.toHaveBeenCalled();
+    expect(cache).not.toHaveBeenCalled();
+    await act(async () => rerender({ active: false }));
+    expect(profiles).toHaveBeenCalledTimes(1);
+    expect(cache).toHaveBeenCalledTimes(1);
+  } finally {
+    profiles.mockRestore();
+  }
+});
+
+test("an installation switch retires stale in-flight and deferred focus results", async () => {
+  let finish!: (value: ProfileList) => void;
+  const profiles = vi.spyOn(bridge, "getProfiles")
+    .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+    .mockResolvedValue({ ...initialProfiles, installRoot: "/other" });
+  const cache = vi.fn().mockResolvedValue(undefined);
+  const refresh = vi.fn().mockResolvedValue(true);
+  const announce = vi.fn();
+  try {
+    const { result, rerender } = renderHook(({ game, active }) =>
+      useProfiles(game, false, refresh, cache, announce, active),
+    { initialProps: { game: "/Applications/Starsector", active: false } });
+    act(() => window.dispatchEvent(new Event("focus")));
+    rerender({ game: "/other", active: false });
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    await act(async () => finish(initialProfiles));
+    expect(result.current.profiles?.installRoot).toBe("/other");
+    rerender({ game: "/other", active: true });
+    act(() => window.dispatchEvent(new Event("focus")));
+    rerender({ game: "/third", active: false });
+    expect(profiles).toHaveBeenCalledTimes(2);
+  } finally {
+    profiles.mockRestore();
+  }
+});
