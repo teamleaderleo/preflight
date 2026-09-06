@@ -11,14 +11,23 @@ import org.objectweb.asm.tree.analysis.*;
 class LinuxTextureUnpackInstalledTest {
     @Test
     void exactLinuxUploadsUseScopedAlignmentHelpers() throws Exception {
-        String configured = System.getProperty("preflight.linux.common.jar", "");
-        Assumptions.assumeFalse(configured.isBlank(), "Supply installed Linux common archive");
+        verifyInstalled("preflight.linux.common.jar", AdapterTargetRegistry.linuxTexturePreparedPixelTarget());
+    }
+
+    @Test
+    void exactMacUploadsUseScopedAlignmentHelpers() throws Exception {
+        verifyInstalled("preflight.mac.common.jar", AdapterTargetRegistry.texturePreparedPixelTarget());
+    }
+
+    private void verifyInstalled(String property, AdapterTarget target) throws Exception {
+        String configured = System.getProperty(property, "");
+        Assumptions.assumeFalse(configured.isBlank(), "Supply installed common archive with " + property);
         byte[] original;
         try (JarFile jar = new JarFile(Path.of(configured).toFile())) {
             original = jar.getInputStream(jar.getJarEntry("com/fs/graphics/TextureLoader.class")).readAllBytes();
         }
         ClassSignature signature = ClassSignature.parse(original);
-        assertEquals(AdapterTargetRegistry.linuxTexturePreparedPixelTarget().sha256(), signature.sha256());
+        assertEquals(target.sha256(), signature.sha256());
         byte[] result = TexturePreparedPixelPlan.transform(signature, original);
         assertNotNull(result);
         ClassNode owner = new ClassNode();
