@@ -80,6 +80,11 @@ extension, symlink and overwrite checks remain in place. A Windows bundled-engin
 an actual selected temporary directory through `desktop snapshot`, rather than only running `help`.
 Native Windows re-verification is still required on corrected installed bytes.
 
+The first follow-up CI attempt (`34067383180`) stopped package preparation because the reviewed
+capability source lock still contained the previous engine source digest. The diff was reviewed and
+the single digest updated with the repository's capability-review command. The failure log remains
+at `benchmark-results/windows-path-contract-failure.log`.
+
 ## Other retained limits
 
 The first Mac integrity verification expected a pruned local source-build JAR and failed. Independent
