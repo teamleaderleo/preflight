@@ -727,11 +727,16 @@ def exercise_frame_pacing_state(
         page.get_by_role("button", name="Speed", exact=True).click()
         card = page.get_by_role("region", name="Latest frame pacing", exact=True)
         card.wait_for()
-        coverage = card.get_by_text(re.compile(r"frames · .+ active"))
-        if coverage.count() != 3:
-            raise RuntimeError(
-                f"{label}: expected active duration beside all three pacing distributions"
-            )
+        for row_name in (
+            "Campaign first 30 seconds",
+            "Paused campaign after 30 seconds",
+            "Unpaused campaign after 30 seconds",
+            "Combat",
+        ):
+            row = card.get_by_role("group", name=row_name, exact=True)
+            row.get_by_text(re.compile(r"frames · .+ active")).wait_for()
+        if card.get_by_role("group").count() != 4:
+            raise RuntimeError(f"{label}: expected four distinct pacing distributions")
         result = assert_page_width(page, label)
         capture(page, output_dir, f"state-{scenario}-{width}x{height}.png")
         return result, errors
