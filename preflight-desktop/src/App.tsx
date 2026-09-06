@@ -761,6 +761,8 @@ export default function App() {
         </Activity>
         <Activity name="help-page" mode={page === "help" ? "visible" : "hidden"}>
           <HelpPage
+            platform={snapshot?.platform}
+            adapterHealth={applicableLastRun?.adapterHealth}
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}

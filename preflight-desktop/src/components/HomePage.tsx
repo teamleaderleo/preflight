@@ -421,12 +421,14 @@ export function HomePage({
             </div>
           ) : null}
           {isReady && lastAdapterHealth?.reviewRecommended && status !== "running" && status !== "launching" ? (
-            <span
-              className="last-run-health last-run-health--review home-hud-layer"
+            <button
+              type="button"
+              className="last-run-health last-run-health--review"
               title={lastAdapterHealth.suggestedActions[0] ?? "Compatibility details from the latest Preflight launch"}
+              onClick={() => onNavigate("help")}
             >
               {adapterHealthLine(lastAdapterHealth)}
-            </span>
+            </button>
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose Starsector"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}

@@ -5,9 +5,9 @@ export function adapterHealthLine(health: AdapterHealthSummary): string {
     case "ACTIVE":
       return "Fast launch ready";
     case "PARTIAL":
-      return "Fast launch ready · fallback used";
+      return "Some optimizations skipped · Details";
     case "SAFE_FALLBACK":
-      return "Last run: original game code used safely";
+      return "Optimizations unavailable · Details";
     case "DISABLED":
       return "Last run: optimizations off";
     case "PROBE_ONLY":
@@ -15,6 +15,6 @@ export function adapterHealthLine(health: AdapterHealthSummary): string {
     case "NO_TARGETS":
       return "Last run: no matching optimizations needed";
     case "ERROR":
-      return "Last run: optimization check incomplete";
+      return "Run check incomplete · Details";
   }
 }

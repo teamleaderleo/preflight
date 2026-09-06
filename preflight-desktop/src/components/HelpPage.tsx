@@ -5,11 +5,13 @@ import { useCopySetup } from "../useCopySetup";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { NoticeTone, OptimizationPreset } from "../types";
+import type { AdapterHealthSummary, DesktopSnapshot, NoticeTone, OptimizationPreset } from "../types";
 
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
 
 interface HelpPageProps {
+  platform?: DesktopSnapshot["platform"];
+  adapterHealth?: AdapterHealthSummary | null;
   message: string;
   messageTone: NoticeTone;
   diagnostics: DiagnosticsState;
@@ -21,6 +23,8 @@ interface HelpPageProps {
 }
 
 export function HelpPage({
+  platform,
+  adapterHealth,
   message,
   messageTone,
   diagnostics,
@@ -57,9 +61,30 @@ export function HelpPage({
     <div className="settings-page help-page">
       <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
 
+      {adapterHealth?.reviewRecommended ? (
+        <section className="card help-boundary-card" aria-labelledby="compatibility-title">
+          <h2 id="compatibility-title">Last run compatibility</h2>
+          <p>{adapterHealth.status === "ERROR"
+            ? "Preflight couldn’t finish checking the last run. Save a support file below to investigate."
+            : "Some optimizations did not apply. You can still launch; check these suggested actions if the game looks wrong or feels slower."}</p>
+          {adapterHealth.suggestedActions.length > 0 ? (
+            <ul>{adapterHealth.suggestedActions.map((action, index) => <li key={`${index}:${action}`}>{action}</li>)}</ul>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="card fixes-card">
         <h2>Common fixes</h2>
         <ul className="fixes-list">
+          {platform === "linux" ? (
+            <li>
+              <div>
+                <strong>Fullscreen stays windowed</strong>
+                <p>Try the resolution marked Display. Some Linux desktops won’t fullscreen a smaller game window.</p>
+              </div>
+              <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("launch")}>Game settings<ArrowIcon /></button>
+            </li>
+          ) : null}
           <li>
             <div>
               <strong>Wrong game folder</strong>
