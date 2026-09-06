@@ -155,9 +155,18 @@ test("Home explains a preparation recovered after restart without inventing a pe
 
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Stop safely" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
   expect(screen.getByText(/Resumed\. Starsector stays closed/)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
+});
+
+test("Home shows the active stage instead of treating unequal stages as a work percentage", () => {
+  renderHome({ ...preparation, preparationPercent: 71 }, true);
+
+  expect(screen.getByText("Textures")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  expect(document.body).not.toHaveTextContent("71%");
 });
 
 test("Home keeps storage-mode taxonomy out of the default low-disk decision", () => {
