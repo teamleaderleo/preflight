@@ -265,7 +265,7 @@ export function HomePage({
     : status === "running"
       ? "Game running"
       : preparing
-        ? preparationPercent === null ? "Preparation in progress" : `Preparing ${preparationPercent}%`
+        ? preparationPercent === null ? "Preparation in progress" : preparationPhaseLabel ?? "Preparing"
         : status === "loading"
           ? "Finding Starsector"
           : !isReady
@@ -476,7 +476,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
                   <div className="home-motion-controls home-hud-layer" role="group" aria-label="Ship rotation">
@@ -503,7 +503,7 @@ export function HomePage({
                 ) : null}
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
-                    {preparationCancelling ? "Stopping…" : "Stop safely"}
+                    {preparationCancelling ? "Stopping…" : "Stop"}
                   </button>
                 ) : null}
                 {status === "running" ? (

@@ -17,7 +17,12 @@ For visible Linux interaction, use the existing Mac connector:
 
 Its `rdp_session=ready` receipt precedes interaction with the saved Windows App device
 `big-red (Tailscale tunnel)`. Credentials stay in the existing stores. The skill owns credential
-recovery. Windowed RDP avoids the observed fullscreen automation `noWindowsAvailable` failures.
+recovery. The maintainer prefers windowed connections, without an initial fullscreen transition.
+The existing bookmark was updated through Windows App's native `--script bookmark write` interface
+with `--fullscreen false --scaling true`; reconnecting on 2026-09-06 verified a normal window.
+An exact 1280×800 initial client size was not established: exported desktop dimensions stayed zero.
+Preserve the saved bookmark and its credentials. Windowed RDP also avoids the observed fullscreen
+automation `noWindowsAvailable` failures.
 Allow the remote display to update before using coordinates from a screenshot. In the GTK chooser,
 traverse Home → Games, select `starsector-0.98a-RC8`, then activate Open. Opening the chooser alone
 does not verify installation selection: Preflight must reach Ready with that installation.

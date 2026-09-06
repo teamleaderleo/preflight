@@ -343,12 +343,12 @@ test("preparation started on Home remains visible and can be stopped safely", as
   const action = await screen.findByRole("button", { name: "Set up and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
-  expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Stop" })).toBeEnabled();
   expect(screen.getByText(/Starsector opens when it’s ready/)).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Stop safely" }));
+  await user.click(screen.getByRole("button", { name: "Stop" }));
   expect(cancel).toHaveBeenCalledOnce();
   pending.resolve({ pid: 4243 });
-  await waitFor(() => expect(screen.queryByRole("button", { name: "Stop safely" })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument());
   expect(game).not.toHaveBeenCalled();
 
   cache.mockRestore();

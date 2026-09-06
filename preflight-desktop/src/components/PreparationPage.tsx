@@ -190,19 +190,16 @@ export function PreparationPage({
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
-          {preparing ? <span>{preparationPercent === null
-            ? "Resumed after restart"
-            : `${preparationPercent}% complete`}</span>
+          {preparing ? preparationPercent === null ? <span>Resumed after restart</span> : null
             : storageBlocked
               ? <span>Minimal skips prepared textures and keeps the other startup caches.</span>
               : overrideSummary
                 ? <span>{overrideSummary}</span>
                 : null}
           {!preparing && reuseSummary ? <small className="field-note">{reuseSummary}</small> : null}
-          {preparing && preparationPercent !== null ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
-          {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
+          {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop"}</button> : null}
           <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current mod setup"}</button>
         </div>
       </section> : null}

@@ -73,3 +73,7 @@ layout fixes are recorded separately. Existing research PRs and #1251 remain sep
 The next improvement should address native mutation responsiveness, followed by coalesced focus
 refresh and the small lifecycle/storage defects. Each requires its own acceptance evidence;
 the list above does not claim those follow-ups are implemented.
+
+Tracked follow-ups: [native mutation responsiveness #1260](https://github.com/teamleaderleo/preflight/issues/1260),
+[coalesced focus refresh #1261](https://github.com/teamleaderleo/preflight/issues/1261), and
+[cosmetic preference and animation cleanup #1262](https://github.com/teamleaderleo/preflight/issues/1262).
