@@ -1108,7 +1108,9 @@ final class AdapterTargetRegistry {
                 MainMenuInteractivePlan.PLAN_ID,
                 List.of(new AdapterTarget.RequiredMethod(
                         MainMenuInteractivePlan.SHOW_METHOD,
-                        MainMenuInteractivePlan.SHOW_DESCRIPTOR)),
+                        MainMenuInteractivePlan.SHOW_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(MainMenuInteractivePlan.ADVANCE_METHOD,
+                                MainMenuInteractivePlan.ADVANCE_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "starfarer_obf.jar",
                 "3d41d31d4840158491426f0570f42d71c176d9bc9cc84605a284e4c76c8b91b0",

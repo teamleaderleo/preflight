@@ -42,7 +42,7 @@ final class MainMenuInteractivePlan {
                 || !supportedTarget(signature)
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(SHOW_METHOD, SHOW_DESCRIPTOR)
-                || (!linuxTarget && !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR))) {
+                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
             return null;
         }
 
@@ -56,27 +56,23 @@ final class MainMenuInteractivePlan {
             return null;
         }
 
-        MethodNode advance = null;
-        MethodInsnNode removal = null;
-        AbstractInsnNode advanceCompletion = null;
-        if (!linuxTarget) {
-            advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
-            removal = uniqueRemoval(advance);
-            advanceCompletion = uniqueReturn(advance);
-            if (removal == null
-                    || advanceCompletion == null
-                    || callsMarker(advance, "mainMenuInteractive") != 0
-                    || callsMarker(advance, "mainMenuOverlayRemoved") != 0
-                    || callsControl(advance) != 0) {
-                return null;
-            }
+        MethodNode advance = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        MethodInsnNode removal = uniqueRemoval(advance,
+                linuxTarget ? "(Lcom/fs/starfarer/ui/OO0o;)V" : REMOVE_DESCRIPTOR);
+        AbstractInsnNode advanceCompletion = uniqueReturn(advance);
+        if (removal == null
+                || advanceCompletion == null
+                || callsMarker(advance, "mainMenuInteractive") != 0
+                || callsMarker(advance, "mainMenuOverlayRemoved") != 0
+                || callsControl(advance) != 0) {
+            return null;
         }
 
         show.instructions.insertBefore(showCompletion, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "mainMenuInteractive", "()V", false));
+        advance.instructions.insert(removal, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "mainMenuOverlayRemoved", "()V", false));
         if (!linuxTarget) {
-            advance.instructions.insert(removal, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "mainMenuOverlayRemoved", "()V", false));
             org.objectweb.asm.tree.InsnList control = new org.objectweb.asm.tree.InsnList();
             control.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.ALOAD, 0));
             control.add(new MethodInsnNode(
@@ -103,14 +99,14 @@ final class MainMenuInteractivePlan {
         return result;
     }
 
-    private static MethodInsnNode uniqueRemoval(MethodNode method) {
+    private static MethodInsnNode uniqueRemoval(MethodNode method, String descriptor) {
         if (method == null) return null;
         MethodInsnNode result = null;
         for (AbstractInsnNode instruction = method.instructions.getFirst();
                 instruction != null; instruction = instruction.getNext()) {
             if (instruction instanceof MethodInsnNode call
                     && "remove".equals(call.name)
-                    && REMOVE_DESCRIPTOR.equals(call.desc)) {
+                    && descriptor.equals(call.desc)) {
                 if (result != null) return null;
                 result = call;
             }
