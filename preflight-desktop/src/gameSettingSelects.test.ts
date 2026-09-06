@@ -57,6 +57,15 @@ describe("display pixels", () => {
     expect(maximumUiScale("2880x1864")).toBeCloseTo(2.25, 5);
   });
 
+  it.each([[4096, 2560], [3440, 1440], [2880, 1864]])("offers the native %ix%i mode even when it is not a common preset", (width, height) => {
+    expect(resolutionChoices("1920x1080", width, height)).toContain(`${width}x${height}`);
+  });
+
+  it("does not offer an invalid detected display mode", () => {
+    expect(resolutionChoices("1920x1080", 0, 0)).not.toContain("0x0");
+    expect(resolutionChoices("1920x1080", 100000, 100000)).not.toContain("100000x100000");
+  });
+
   it("keeps the current resolution even when it exceeds the display", () => {
     withDisplay(1280, 720, 1);
     expect(resolutionChoices("3840x2160", 1280, 720)).toContain("3840x2160");
