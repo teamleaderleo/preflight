@@ -8,6 +8,8 @@ Pushing a `v*` tag does **not** authorize public publication. The `Distribution`
 
 The draft stays private until a maintainer explicitly runs the separate **Publish verified release** workflow.
 
+For the first beta, the public GitHub object is intentionally a normal release, even though the product calls it a beta. The default updater reads `releases/latest/download/latest.json`, and GitHub's `latest` release selection excludes prereleases. Do not set the GitHub prerelease flag for 0.1.0 while that updater endpoint is in use. Moving beta updates to GitHub prereleases requires a dedicated prerelease feed plus an installed-version update acceptance run against that feed.
+
 Publication never rebuilds the candidate. If the original verified artifact is unavailable, the tag moved, the draft changed, or any draft asset differs from the preserved verified bytes, publication fails and a new candidate must be reviewed.
 
 ## Maintainer approval step
