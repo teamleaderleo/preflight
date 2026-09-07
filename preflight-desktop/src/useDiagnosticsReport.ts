@@ -57,7 +57,7 @@ function savedSupportReceipt(): SupportReportReceipt | null {
         sha256: value.sha256,
         productVersion: value.productVersion,
         receivedAt: value.receivedAt,
-        retentionDeadline: value.retentionDeadline,
+        retentionDeadline: value.retentionDeadline as string,
       };
     }
     window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
