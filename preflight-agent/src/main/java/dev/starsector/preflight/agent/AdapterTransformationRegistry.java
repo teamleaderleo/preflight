@@ -554,7 +554,7 @@ final class AdapterTransformationRegistry {
         }
     }
 
-    /** Applies every independent ShipHullSpecLoader rewrite to one tree and frame pass. */
+    /** Composes ShipHullSpecLoader rewrites while preserving the game's original stack maps. */
     private static byte[] shipHullLoaderPlans(ClassSignature signature, byte[] originalBytes) {
         if (!ShipHullLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
             return null;

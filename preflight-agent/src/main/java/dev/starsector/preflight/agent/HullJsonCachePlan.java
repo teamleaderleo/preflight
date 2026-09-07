@@ -5,21 +5,15 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.InsnNode;
-import org.objectweb.asm.tree.JumpInsnNode;
-import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
-import org.objectweb.asm.tree.VarInsnNode;
 
 /** Uses prepared merged JSON while retaining the original LoadingUtils call as the miss path. */
 final class HullJsonCachePlan {
     private static final String TARGET = ShipHullLoaderPhasePlan.TARGET_CLASS;
     private static final String RUNTIME = "dev/starsector/preflight/agent/HullJsonCacheRuntime";
     private static final String LOADING_UTILS = "com/fs/starfarer/loading/LoadingUtils";
-    private static final String JSON = "org/json/JSONObject";
+    private static final String HELPER = "preflight$hullJson";
     private static final String JSON_DESCRIPTOR = "(Ljava/lang/String;)Lorg/json/JSONObject;";
 
     private HullJsonCachePlan() {
@@ -46,31 +40,12 @@ final class HullJsonCachePlan {
         MethodInsnNode originalCall = uniqueJsonCall(loadOne);
         AbstractInsnNode loadAllReturn = uniqueReturn(loadAll);
         if (loadAll == null || loadOne == null || originalCall == null || loadAllReturn == null
-                || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
+                || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)
+                || PreparedJsonCallPlan.hasHelper(owner, HELPER)) {
             return false;
         }
 
-        int pathLocal = loadOne.maxLocals++;
-        LabelNode hit = new LabelNode();
-        InsnList before = new InsnList();
-        before.add(new VarInsnNode(Opcodes.ASTORE, pathLocal));
-        before.add(new VarInsnNode(Opcodes.ALOAD, pathLocal));
-        before.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
-                "cached", "(Ljava/lang/String;)Ljava/lang/Object;", false));
-        before.add(new InsnNode(Opcodes.DUP));
-        before.add(new JumpInsnNode(Opcodes.IFNONNULL, hit));
-        before.add(new InsnNode(Opcodes.POP));
-        before.add(new VarInsnNode(Opcodes.ALOAD, pathLocal));
-        loadOne.instructions.insertBefore(originalCall, before);
-
-        InsnList after = new InsnList();
-        after.add(new InsnNode(Opcodes.DUP));
-        after.add(new VarInsnNode(Opcodes.ALOAD, pathLocal));
-        after.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
-                "capture", "(Ljava/lang/Object;Ljava/lang/String;)V", false));
-        after.add(hit);
-        after.add(new TypeInsnNode(Opcodes.CHECKCAST, JSON));
-        loadOne.instructions.insert(originalCall, after);
+        PreparedJsonCallPlan.replace(owner, originalCall, RUNTIME, HELPER);
         loadAll.instructions.insertBefore(loadAllReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "complete", "()V", false));
 
@@ -78,7 +53,7 @@ final class HullJsonCachePlan {
     }
 
     static byte[] write(ClassNode owner) {
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
     }
