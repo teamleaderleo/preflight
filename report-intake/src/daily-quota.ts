@@ -57,6 +57,18 @@ export class DailyReportQuota extends DurableObject<Env> {
     const usedBytes = this.usedBytes();
     if (existing) {
       if (existing.bytes !== bytes) throw new Error("case already has a different quota reservation");
+      // A keyed case-creation replay returns a freshly signed upload grant. Keep the uncommitted
+      // reservation alive for at least that fresh grant's lifetime, otherwise a response lost near
+      // the original TTL boundary can be recovered successfully and then fail upload with a stale
+      // reservation. Committed rows stay unchanged because they are retained as consumed daily
+      // quota even after user deletion.
+      if (existing.committed === 0 && existing.expires_at < expiresAtMillis) {
+        this.ctx.storage.sql.exec(
+          "UPDATE reservations SET expires_at = ? WHERE case_id = ? AND committed = 0",
+          expiresAtMillis,
+          caseId,
+        );
+      }
       return { accepted: true, usedBytes };
     }
     if (usedBytes > limitBytes - bytes) return { accepted: false, usedBytes };
