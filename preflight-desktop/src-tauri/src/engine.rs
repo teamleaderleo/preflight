@@ -1227,7 +1227,7 @@ pub(crate) fn apply_cache_cleanup(
         );
     }
     let _operation = reserve_foreground(&app, &tracker, running)?;
-    cache_health_json(&app, &game, Some(""))
+    cache_cleanup_json(&app, &game, true)
 }
 
 #[tauri::command(async)]
@@ -1313,7 +1313,6 @@ pub(crate) fn get_evidence_cleanup(app: AppHandle) -> Result<Value, String> {
 pub(crate) fn apply_evidence_cleanup(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
-    game: String,
 ) -> Result<Value, String> {
     let running = tracker
         .0
@@ -1671,6 +1670,26 @@ mod bounded_request_tests {
     }
 
     #[test]
+    fn a_stalled_child_filling_both_pipes_still_times_out() {
+        // Both pipes are filled well past any pipe buffer and then the child stalls. A reader that
+        // drained stdout to its end before touching stderr would block here rather than time out.
+        let started = Instant::now();
+
+        let error = fake_engine(
+            "yes out | head -c 2000000; yes err | head -c 2000000 1>&2; exec sleep 600",
+        )
+        .output_within(Duration::from_secs(2))
+        .expect_err("a stalled child must time out even after filling both pipes");
+
+        assert_eq!(error.kind(), ErrorKind::TimedOut);
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
     fn simultaneous_stdout_and_stderr_pressure_is_drained_concurrently() {
         let output = fake_engine(
             "head -c 2000000 /dev/zero & out=$!; head -c 2000000 /dev/zero 1>&2 & err=$!; wait $out $err",
@@ -1768,7 +1787,7 @@ mod bounded_request_tests {
         let worker_reads = reads.clone();
         let started = Instant::now();
         let worker = std::thread::spawn(move || {
-            fake_engine("(sleep 30; printf inherited) & exit 0")
+            fake_engine("(sleep 3; printf inherited) & exit 0")
                 .output_registered(Duration::from_secs(30), Some(&worker_reads))
         });
 
