@@ -85,6 +85,49 @@ capability source lock still contained the previous engine source digest. The di
 the single digest updated with the repository's capability-review command. The failure log remains
 at `benchmark-results/windows-path-contract-failure.log`.
 
+## Corrected packages installed; native continuation blocked
+
+PR #1273 merged as `03c1e581ccd6193c865f2ddd4b10336cbf90e878`. Desktop CI
+[34067557024](https://github.com/teamleaderleo/preflight/actions/runs/34067557024) passed all three
+packages, native-host checks and release contracts. The Windows bundled-engine job passed all three
+tests, including selected-directory inspection and diagnostics path spelling. Its log is retained at
+`benchmark-results/windows-path-ci-package.log`.
+
+Private Distribution [34068259606](https://github.com/teamleaderleo/preflight/actions/runs/34068259606)
+completed successfully on that merged source. All 33 candidate files were authenticated on download,
+and platform package checksums passed. These corrected packages are installed on Mac, Linux and
+Windows. Their engine JAR is byte-identical to the earlier candidate above; the native hosts changed.
+
+| Installed host | Native executable SHA-256 |
+| --- | --- |
+| Mac | `6016d33f9cb6fd83fcc8bb48369d1f1f754d5fc9eea40c914419cff8d00d2570` |
+| Linux | `b052e8820a80a0145207a6e814e3222a0a6b1369015ce31814a61c69f704de0e` |
+| Windows | `4984e269cfaa96d2599d0be23f8aaae518f227ce3f5bdc637b6e667dccaf2729` |
+
+The corrected Windows installer hash is
+`5e9080a55bddc891f2fe0ee3f71f5bb0898cada2215366e5bd41d2fadbbef75f`; the Debian package hash is
+`e465003c7bd45ac9893a4a696ce23b8f0a3788f0eba9db19c3ed936c4d0375c5`. Transferred copies matched.
+Mac independent installed-package integrity verification passed. Linux returned `install ok installed`;
+Windows's silent installer exited zero and installed-engine/native hashes were read back.
+
+The first corrected Debian install was mistakenly attempted before its transfer completed and failed
+with a truncated-archive error (`aa045a`). After transfer completion and matching SHA-256 checks, the
+install completed (`326148`). An intervening shell-quoting attempt had no effect. These are retained
+operator failures, not successful package observations.
+
+The Mac locked before corrected native GUI inspection. Computer Use refused access; no attempt was
+made to bypass the lock. Therefore the corrected Windows folder picker, settings/Apply/reopen and
+recovered Stop are still **unverified natively**. Earlier Mac/Linux native passes above retain their
+original package identities; installation of corrected bytes is not substituted for new interaction.
+Issues #1260 and #1263 remain open for that continuation. #1261 is closed with the measured native
+focus evidence and automated state-change coverage. Duplicate Linux shortcut naming is tracked in
+#1274.
+
+At the pause, all owned test game/GUI, Moonlight and keep-awake processes were closed. Windows was
+shut down through the guest agent and verified `shut off`. The shared GPU was rebound to `i915`, GDM
+started, and SSH verified. Persistent boot configuration was unchanged. Native RDP interaction after
+this final handback remains pending the Mac unlock; service state is not a screenshot/interaction claim.
+
 ## Other retained limits
 
 The first Mac integrity verification expected a pruned local source-build JAR and failed. Independent
