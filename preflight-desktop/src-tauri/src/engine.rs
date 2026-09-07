@@ -279,7 +279,11 @@ impl EngineCommand {
                 PipeKind::Stdout,
                 reader_sender.clone(),
             );
-            drain(process.stderr.take(), PipeKind::Stderr, reader_sender.clone());
+            drain(
+                process.stderr.take(),
+                PipeKind::Stderr,
+                reader_sender.clone(),
+            );
         }
         drop(reader_sender);
 
@@ -427,15 +431,14 @@ fn drain<R: Read + Send + 'static>(
     completed: mpsc::Sender<PipeRead>,
 ) {
     std::thread::spawn(move || {
-        let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            drain_pipe(pipe)
-        })) {
-            Ok(result) => result,
-            Err(_) => Err(std::io::Error::other(format!(
-                "Preflight engine {} reader stopped unexpectedly",
-                kind.name()
-            ))),
-        };
+        let result =
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drain_pipe(pipe))) {
+                Ok(result) => result,
+                Err(_) => Err(std::io::Error::other(format!(
+                    "Preflight engine {} reader stopped unexpectedly",
+                    kind.name()
+                ))),
+            };
         let _ = completed.send(PipeRead { kind, result });
     });
 }
@@ -1778,7 +1781,10 @@ mod bounded_request_tests {
 
         assert_eq!(error.kind(), ErrorKind::BrokenPipe);
         assert!(error.to_string().contains("stdout"), "{error}");
-        assert!(error.to_string().contains("synthetic reader failure"), "{error}");
+        assert!(
+            error.to_string().contains("synthetic reader failure"),
+            "{error}"
+        );
     }
 
     #[test]
