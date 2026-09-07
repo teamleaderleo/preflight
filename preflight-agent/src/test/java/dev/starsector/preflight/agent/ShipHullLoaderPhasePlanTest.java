@@ -49,7 +49,7 @@ class ShipHullLoaderPhasePlanTest {
         assertNull(ShipHullLoaderPhasePlan.transform(ClassSignature.parse(once), once));
     }
 
-    private static byte[] fixture(IntUnaryOperator counts) {
+    static byte[] fixture(IntUnaryOperator counts) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, ShipHullLoaderPhasePlan.TARGET_CLASS,
                 null, "java/lang/Object", null);

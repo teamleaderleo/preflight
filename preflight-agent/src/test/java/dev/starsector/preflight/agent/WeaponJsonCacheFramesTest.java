@@ -35,7 +35,7 @@ public class WeaponJsonCacheFramesTest {
         verifyHierarchy(WeaponJsonCachePlan.write(owner));
     }
 
-    private static void verifyHierarchy(byte[] bytes) throws Exception {
+    static void verifyHierarchy(byte[] bytes) throws Exception {
         Class<?> type = new ClassLoader(WeaponJsonCacheFramesTest.class.getClassLoader()) {
             Class<?> define() {
                 return defineClass(null, bytes, 0, bytes.length);
@@ -51,6 +51,10 @@ public class WeaponJsonCacheFramesTest {
         ClassNode projectile = new ClassNode(Opcodes.ASM9);
         new ClassReader(ProjectileJsonCachePlanTest.fixture(1)).accept(projectile, ClassReader.EXPAND_FRAMES);
         owner.methods.addAll(projectile.methods);
+        return withHierarchy(owner);
+    }
+
+    static byte[] withHierarchy(ClassNode owner) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,

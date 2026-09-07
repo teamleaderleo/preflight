@@ -83,7 +83,7 @@ final class ShipHullLoaderPhasePlan {
     }
 
     static byte[] write(ClassNode owner) {
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
     }
