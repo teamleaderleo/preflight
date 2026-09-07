@@ -29,6 +29,48 @@ import { errorMessage, localDateStamp } from "./uiFormat";
 
 export const REPORT_INTAKE_NAVIGATION_IDLE_MS = 180;
 
+function savedSupportReceipt(): SupportReportReceipt | null {
+  try {
+    const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<SupportReportReceipt>;
+    const deadline = typeof value.retentionDeadline === "string"
+      ? Date.parse(value.retentionDeadline)
+      : Number.NaN;
+    if (
+      typeof value.caseId === "string"
+      && value.caseId.length > 0
+      && typeof value.bytes === "number"
+      && Number.isSafeInteger(value.bytes)
+      && value.bytes > 0
+      && typeof value.sha256 === "string"
+      && /^[0-9a-f]{64}$/.test(value.sha256)
+      && typeof value.productVersion === "string"
+      && typeof value.receivedAt === "string"
+      && Number.isFinite(Date.parse(value.receivedAt))
+      && Number.isFinite(deadline)
+      && deadline > Date.now()
+    ) {
+      return {
+        caseId: value.caseId,
+        bytes: value.bytes,
+        sha256: value.sha256,
+        productVersion: value.productVersion,
+        receivedAt: value.receivedAt,
+        retentionDeadline: value.retentionDeadline,
+      };
+    }
+    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+  } catch {
+    try {
+      window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+    } catch {
+      // Native private case recovery remains authoritative when renderer storage is unavailable.
+    }
+  }
+  return null;
+}
+
 function unavailableFromUnknown(
   current: ReportIntakeStatus | null,
   transaction: ReportTransactionResult,
@@ -52,7 +94,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [reportFinalizing, setReportFinalizing] = useState(false);
   const [reportCancelling, setReportCancelling] = useState(false);
   const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
-  const [reportReceipt, setReportReceipt] = useState<SupportReportReceipt | null>(null);
+  const [reportReceipt, setReportReceipt] = useState<SupportReportReceipt | null>(savedSupportReceipt);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
   const diagnosticsBusyRef = useRef(false);
@@ -60,13 +102,20 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
 
   useEffect(() => {
     try {
-      // Older builds kept the complete deletion bearer here. Native private storage owns deletion
-      // authority now, so renderer storage is retired eagerly.
-      window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+      if (reportReceipt) {
+        // Renderer persistence is a support-safe display cache only. Native private storage keeps
+        // every bearer credential and owns deletion authority across restart.
+        window.localStorage.setItem(
+          REPORT_RECEIPT_STORAGE_KEY,
+          JSON.stringify(supportSafeReportReceipt(reportReceipt)),
+        );
+      } else {
+        window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+      }
     } catch {
       // A locked-down webview can deny storage; native case recovery remains authoritative.
     }
-  }, []);
+  }, [reportReceipt]);
 
   const applyTransaction = (transaction: ReportTransactionResult, source: "command" | "status" | "event") => {
     if (transaction.state === "accepted" && transaction.receipt) {

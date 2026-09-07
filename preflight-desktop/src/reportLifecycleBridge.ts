@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { browserPreviewScenario, isDesktopHost } from "./bridge";
+import { browserPreviewScenario, getReportIntakeStatus, isDesktopHost } from "./bridge";
 import type { DiagnosticsExport } from "./types";
 
 export type ReportLifecycleState = "accepted" | "cleanup-confirmed" | "remote-outcome-unknown";
@@ -46,12 +46,8 @@ export interface ReportUploadStateEvent {
 
 export async function getReportLifecycleStatus(): Promise<ReportIntakeStatus> {
   if (!isDesktopHost()) {
-    return {
-      configured: true,
-      origin: "https://reports.preview.invalid",
-      reason: null,
-      reportCase: null,
-    };
+    const status = await getReportIntakeStatus();
+    return { ...status, reportCase: null };
   }
   return invoke<ReportIntakeStatus>("get_report_intake_status");
 }
@@ -60,10 +56,10 @@ export async function sendReportTransaction(report: DiagnosticsExport): Promise<
   if (!isDesktopHost()) {
     if (browserPreviewScenario() === "report-error") {
       return {
-        state: "remote-outcome-unknown",
+        state: "cleanup-confirmed",
         caseId: null,
         receipt: null,
-        detail: "The preview could not confirm the remote report outcome.",
+        detail: "The preview report service rejected the case before upload. The support file is still on this computer.",
       };
     }
     await new Promise((resolve) => window.setTimeout(resolve, 500));

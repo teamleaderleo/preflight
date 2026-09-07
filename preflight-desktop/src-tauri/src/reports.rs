@@ -1,4 +1,7 @@
-use crate::bound_directory::BoundDirectory;
+#[path = "bound_directory.rs"]
+mod bound_directory;
+
+use bound_directory::BoundDirectory;
 use crate::operations::{
     OperationCoordinator, ReportUploadProcess, refuse_benchmark_for_report, refuse_update_install,
 };
@@ -388,17 +391,25 @@ impl ReportStore {
 
     fn load(&self) -> Result<Option<StoredReportState>, String> {
         let mut selected: Option<StoredReportState> = None;
+        let mut invalid = Vec::new();
         for name in self.state_names()? {
-            let bytes = self
-                .directory
-                .read_bytes(&name, REPORT_STATE_LIMIT)
-                .map_err(|error| format!("Could not read private report state: {error}"))?;
-            let state: StoredReportState = serde_json::from_slice(&bytes)
-                .map_err(|error| format!("Private report state is invalid: {error}"))?;
-            let expected_name = state.file_name();
-            if OsStr::new(&expected_name) != name.as_os_str() {
-                return Err("Private report state filename does not match its contents.".to_string());
-            }
+            let state = match self.directory.read_bytes(&name, REPORT_STATE_LIMIT) {
+                Ok(bytes) => match serde_json::from_slice::<StoredReportState>(&bytes) {
+                    Ok(state) if OsStr::new(&state.file_name()) == name.as_os_str() => state,
+                    Ok(_) => {
+                        invalid.push("private report state filename does not match its contents".to_string());
+                        continue;
+                    }
+                    Err(error) => {
+                        invalid.push(format!("private report state is invalid: {error}"));
+                        continue;
+                    }
+                },
+                Err(error) => {
+                    invalid.push(format!("could not read private report state: {error}"));
+                    continue;
+                }
+            };
             match &selected {
                 None => selected = Some(state),
                 Some(current) if state.priority() > current.priority() => selected = Some(state),
@@ -410,7 +421,14 @@ impl ReportStore {
                 Some(_) => {}
             }
         }
-        Ok(selected)
+        match selected {
+            Some(state) => Ok(Some(state)),
+            None if invalid.is_empty() => Ok(None),
+            None => Err(format!(
+                "Private report storage has no readable recovery state: {}",
+                invalid.join("; ")
+            )),
+        }
     }
 
     fn publish(&self, state: &StoredReportState) -> Result<(), String> {
@@ -443,10 +461,12 @@ impl ReportStore {
                 .directory
                 .create_new(name_os, 0o600)
                 .map_err(|error| format!("Could not create private report state: {error}"))?;
-            file.write_all(&bytes)
-                .map_err(|error| format!("Could not write private report state: {error}"))?;
-            file.sync_all()
-                .map_err(|error| format!("Could not sync private report state: {error}"))?;
+            if let Err(error) = file.write_all(&bytes).and_then(|()| file.sync_all()) {
+                drop(file);
+                let _ = self.directory.delete_file(name_os);
+                let _ = self.directory.sync();
+                return Err(format!("Could not durably write private report state: {error}"));
+            }
             self.directory
                 .sync()
                 .map_err(|error| format!("Could not publish private report state: {error}"))?;
@@ -639,7 +659,7 @@ pub(crate) async fn get_report_intake_status(app: AppHandle) -> ReportIntakeStat
                 reason,
                 report_case,
             }
-        },
+        }
         Err(reason) => ReportIntakeStatus {
             configured: false,
             origin: Some(origin.origin().ascii_serialization()),
@@ -806,9 +826,9 @@ pub(crate) async fn send_run_report(
             let clear = store.clear();
             let detail = match clear {
                 Ok(()) => detail,
-                Err(error) => format!(
-                    "{detail} Private recovery cleanup will be retried later: {error}"
-                ),
+                Err(error) => {
+                    format!("{detail} Private recovery cleanup will be retried later: {error}")
+                }
             };
             ReportTransactionResult::cleanup_confirmed(detail)
         }
@@ -847,13 +867,9 @@ pub(crate) async fn send_run_report(
             detail,
             ..
         } => {
-            let mut event = ReportUploadStateEvent::new(
-                "remote-outcome-unknown",
-                id,
-                0,
-                report.bytes,
-            )
-            .with_detail(detail.clone().unwrap_or_default());
+            let mut event =
+                ReportUploadStateEvent::new("remote-outcome-unknown", id, 0, report.bytes)
+                    .with_detail(detail.clone().unwrap_or_default());
             if let Some(case_id) = case_id {
                 event = event.with_case(case_id.clone());
             }
@@ -930,7 +946,9 @@ mod tests {
     };
     use crate::operations::{OperationState, ReportUploadProcess};
     use crate::take_deferred_exit;
+    use std::ffi::OsStr;
     use std::fs;
+    use std::io::Write;
     use std::sync::Mutex;
     use std::sync::atomic::Ordering;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -978,6 +996,34 @@ mod tests {
         }
     }
 
+    fn grant(case_id: &str) -> super::CreateReportCaseResponse {
+        super::CreateReportCaseResponse {
+            protocol_version: 1,
+            case_id: case_id.to_string(),
+            upload: super::ReportGrantEndpoint {
+                method: "PUT".to_string(),
+                url: format!("https://reports.example/v1/cases/{case_id}/archive"),
+                content_type: Some("application/zip".to_string()),
+                expires_at: Some("2026-09-07T13:00:00Z".to_string()),
+                token: "upload.signature".to_string(),
+            },
+            finalize: super::ReportGrantEndpoint {
+                method: "POST".to_string(),
+                url: format!("https://reports.example/v1/cases/{case_id}/finalize"),
+                content_type: None,
+                expires_at: None,
+                token: "upload.signature".to_string(),
+            },
+            deletion: super::ReportGrantEndpoint {
+                method: "DELETE".to_string(),
+                url: format!("https://reports.example/v1/cases/{case_id}"),
+                content_type: None,
+                expires_at: None,
+                token: "delete.signature".to_string(),
+            },
+        }
+    }
+
     #[test]
     fn native_receipt_survives_store_reopen_and_keeps_deletion_authority_private() {
         let _guard = STORE_TEST_LOCK.lock().unwrap();
@@ -1017,31 +1063,7 @@ mod tests {
         let store = ReportStore::open_at(&root).unwrap();
         let transaction_id = new_report_transaction_id().unwrap();
         let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
-        let grant = super::CreateReportCaseResponse {
-            protocol_version: 1,
-            case_id: case_id.to_string(),
-            upload: super::ReportGrantEndpoint {
-                method: "PUT".to_string(),
-                url: format!("https://reports.example/v1/cases/{case_id}/archive"),
-                content_type: Some("application/zip".to_string()),
-                expires_at: Some("2026-09-07T13:00:00Z".to_string()),
-                token: "upload.signature".to_string(),
-            },
-            finalize: super::ReportGrantEndpoint {
-                method: "POST".to_string(),
-                url: format!("https://reports.example/v1/cases/{case_id}/finalize"),
-                content_type: None,
-                expires_at: None,
-                token: "upload.signature".to_string(),
-            },
-            deletion: super::ReportGrantEndpoint {
-                method: "DELETE".to_string(),
-                url: format!("https://reports.example/v1/cases/{case_id}"),
-                content_type: None,
-                expires_at: None,
-                token: "delete.signature".to_string(),
-            },
-        };
+        let grant = grant(case_id);
         store
             .publish(&StoredReportState::Granted {
                 transaction_id: transaction_id.clone(),
@@ -1060,6 +1082,45 @@ mod tests {
                 })
                 .is_err()
         );
+        assert!(matches!(
+            store.load().unwrap().unwrap(),
+            StoredReportState::Granted {
+                recovery: ReportRecoveryKind::Finalize,
+                grant: saved,
+                ..
+            } if saved == grant
+        ));
+
+        store.clear().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn torn_higher_priority_state_keeps_finalize_recovery_available() {
+        let _guard = STORE_TEST_LOCK.lock().unwrap();
+        let root = temp_root("torn-state");
+        let store = ReportStore::open_at(&root).unwrap();
+        let transaction_id = new_report_transaction_id().unwrap();
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        let grant = grant(case_id);
+        store
+            .publish(&StoredReportState::Granted {
+                transaction_id,
+                identity: identity(),
+                grant: grant.clone(),
+                recovery: ReportRecoveryKind::Finalize,
+            })
+            .unwrap();
+
+        let torn_name = format!("{REPORT_STATE_PREFIX}accepted-{case_id}{REPORT_STATE_SUFFIX}");
+        let mut torn = store
+            .directory
+            .create_new(OsStr::new(&torn_name), 0o600)
+            .unwrap();
+        torn.write_all(b"{").unwrap();
+        torn.sync_all().unwrap();
+        store.directory.sync().unwrap();
+
         assert!(matches!(
             store.load().unwrap().unwrap(),
             StoredReportState::Granted {
