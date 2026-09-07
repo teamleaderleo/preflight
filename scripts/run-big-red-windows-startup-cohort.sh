@@ -139,7 +139,7 @@ if [[ "$windows_initial_heap_probe" == true && "$disable_windows_initial_heap_pr
 fi
 
 case "$condition" in
-    all|starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
+    all|starsector|preflight|preflight-prepared-resources|preflight-faction-priority|preflight-kaleidoscope|preflight-spec-store-texture-overlap|preflight-partial-no-prepared-audio|fast-rendering|preflight-fast-rendering|preflight-fast-rendering-prepared) ;;
     *) echo "Unsupported condition: $condition" >&2; exit 2 ;;
 esac
 [[ "$iterations" =~ ^([1-9]|1[0-9]|20)$ ]] || { echo "Iterations must be 1-20" >&2; exit 2; }

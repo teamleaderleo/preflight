@@ -53,7 +53,7 @@ param(
     [int]$WindowsPreparedPrefetchWorkers = 1,
     [ValidateRange(0, 8192)]
     [int]$WindowsUnpaddedMaxDimension = 0,
-    [ValidateSet('starsector', 'preflight', 'preflight-prepared-resources', 'preflight-faction-priority', 'preflight-kaleidoscope', 'preflight-spec-store-texture-overlap', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
+    [ValidateSet('starsector', 'preflight', 'preflight-prepared-resources', 'preflight-faction-priority', 'preflight-kaleidoscope', 'preflight-spec-store-texture-overlap', 'preflight-partial-no-prepared-audio', 'fast-rendering', 'preflight-fast-rendering', 'preflight-fast-rendering-prepared')]
     [string[]]$Conditions = @('starsector', 'preflight', 'fast-rendering', 'preflight-fast-rendering')
 )
 
@@ -282,6 +282,74 @@ function Get-IsoElapsedMillis([object]$Start, [object]$End) {
     }
 }
 
+function Test-UsesPreflight([string]$Condition) {
+    return $Condition -in @(
+        'preflight',
+        'preflight-prepared-resources',
+        'preflight-faction-priority',
+        'preflight-kaleidoscope',
+        'preflight-spec-store-texture-overlap',
+        'preflight-partial-no-prepared-audio',
+        'preflight-fast-rendering',
+        'preflight-fast-rendering-prepared'
+    )
+}
+
+function Test-UsesFastRendering([string]$Condition) {
+    return $Condition -in @(
+        'fast-rendering',
+        'preflight-fast-rendering',
+        'preflight-fast-rendering-prepared'
+    )
+}
+
+function Get-LaunchPolicyArguments([string]$Condition) {
+    if ($Condition -eq 'preflight-partial-no-prepared-audio') {
+        return @('--disable-optimization-domain', 'prepared-audio')
+    }
+    return @()
+}
+
+function Invoke-LaunchReadiness(
+    [string]$Condition,
+    [string]$Launcher,
+    [string]$Java,
+    [string]$SessionDirectory,
+    [string]$Phase
+) {
+    $arguments = @(
+        '-jar', $PreflightJar,
+        'cache', 'readiness', '--game', $Game,
+        '--launcher', $Launcher,
+        '--cache-dir', $Cache,
+        '--optimization-preset', $OptimizationPreset,
+        '--json'
+    ) + @(Get-LaunchPolicyArguments $Condition)
+    $safeCondition = $Condition -replace '[^A-Za-z0-9_.-]', '_'
+    $stdout = Join-Path $SessionDirectory ("readiness-{0}-{1}.json" -f $Phase, $safeCondition)
+    $stderr = Join-Path $SessionDirectory ("readiness-{0}-{1}.stderr.log" -f $Phase, $safeCondition)
+    $text = (& $Java @arguments 2> $stderr | Out-String).Trim()
+    $exitCode = $LASTEXITCODE
+    $text | Set-Content -LiteralPath $stdout -Encoding UTF8
+    if ($exitCode -ne 0) {
+        throw "Preflight readiness command failed for $Condition with exit code $exitCode; see $stderr"
+    }
+    try {
+        $receipt = $text | ConvertFrom-Json
+    } catch {
+        throw "Preflight readiness command returned invalid JSON for $Condition; see $stdout"
+    }
+    if ($receipt.format -ne 'starsector-preflight-launch-readiness-v1') {
+        throw "Unsupported Preflight readiness format for $Condition: $($receipt.format)"
+    }
+    return $receipt
+}
+
+function Get-ReadinessComponent([object]$Readiness, [string]$Id) {
+    if (-not $Readiness) { return $null }
+    return $Readiness.components | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+}
+
 function Measure-OneRun(
     [string]$Condition,
     [int]$Iteration,
@@ -290,7 +358,8 @@ function Measure-OneRun(
     [string]$VanillaLauncher,
     [string]$FastRenderingLauncher,
     [string]$GameLog,
-    [string]$DirectResolution
+    [string]$DirectResolution,
+    [object]$Readiness
 ) {
     New-Item -ItemType Directory -Path $RunDirectory -Force | Out-Null
     if (Test-Path -LiteralPath $GameLog) {
@@ -306,6 +375,7 @@ function Measure-OneRun(
         'preflight-faction-priority',
         'preflight-kaleidoscope',
         'preflight-spec-store-texture-overlap',
+        'preflight-partial-no-prepared-audio',
         'preflight-fast-rendering',
         'preflight-fast-rendering-prepared'
     )
@@ -557,6 +627,7 @@ log4j.appender.file.MaxBackupIndex=3
                 '--texture-cache-dir', $Cache,
                 '--no-scan', '--optimization-preset', $OptimizationPreset, '--no-record'
             )
+            $arguments += @(Get-LaunchPolicyArguments $Condition)
             if ($StartupPhaseProbe) {
                 $arguments += '--startup-phase-probe'
             }
@@ -658,11 +729,41 @@ log4j.appender.file.MaxBackupIndex=3
         $adapter.transformerInstalled -and
         $runtimeOwner -eq $expectedOwner
     }
-    $accepted = $graphicsPreloadObserved -and $elapsedMs -ne $null -and $gracefulShutdown
-    if ($usesPreflight) {
-        $accepted = $accepted -and $adapterHealthy -and $mainMenuInteractiveObserved
+    $preparedAudioRuntime = if ($adapter -and
+            $adapter.PSObject.Properties.Name -contains 'preparedAudio') {
+        $adapter.preparedAudio
+    } else { $null }
+    $runLaunchCondition = if ($run -and
+            $run.PSObject.Properties.Name -contains 'launchCondition') {
+        $run.launchCondition
+    } else { $null }
+    $intendedLaunchCondition = if ($usesPreflight -and $Readiness) {
+        [string]$Readiness.launchCondition.intended
+    } else {
+        "runner-condition-v1/$Condition"
     }
-    if ($usesFastRendering) { $accepted = $accepted -and $fastRenderingObserved }
+    $effectiveLaunchCondition = if ($usesPreflight -and $runLaunchCondition) {
+        [string]$runLaunchCondition.effective
+    } else {
+        "runner-condition-v1/$Condition"
+    }
+    $launchConditionMatched = if (-not $usesPreflight) {
+        $true
+    } else {
+        $Readiness -and $runLaunchCondition -and
+        [string]$runLaunchCondition.intended -eq [string]$Readiness.launchCondition.intended -and
+        [string]$runLaunchCondition.effective -eq [string]$Readiness.launchCondition.effective
+    }
+
+    $exclusionReasons = [System.Collections.Generic.List[string]]::new()
+    if (-not $graphicsPreloadObserved) { $exclusionReasons.Add('graphics-preload-marker-missing') }
+    if ($elapsedMs -eq $null) { $exclusionReasons.Add('historical-timing-endpoints-missing') }
+    if (-not $gracefulShutdown) { $exclusionReasons.Add('graceful-shutdown-failed') }
+    if ($usesPreflight -and -not $adapterHealthy) { $exclusionReasons.Add('adapter-unhealthy') }
+    if ($usesPreflight -and -not $mainMenuInteractiveObserved) { $exclusionReasons.Add('main-menu-interactive-missing') }
+    if ($usesPreflight -and -not $launchConditionMatched) { $exclusionReasons.Add('launch-condition-mismatch') }
+    if ($usesFastRendering -and -not $fastRenderingObserved) { $exclusionReasons.Add('fast-rendering-not-observed') }
+    $accepted = $exclusionReasons.Count -eq 0
 
     if (Test-Path -LiteralPath $GameLog) {
         Copy-Item -LiteralPath $GameLog -Destination (Join-Path $RunDirectory 'starsector.log') -Force
@@ -671,6 +772,17 @@ log4j.appender.file.MaxBackupIndex=3
         condition = $Condition
         iteration = $Iteration
         accepted = [bool]$accepted
+        excluded = [bool](-not $accepted)
+        exclusionReasons = @($exclusionReasons)
+        intendedLaunchCondition = $intendedLaunchCondition
+        effectiveLaunchCondition = $effectiveLaunchCondition
+        launchConditionMatched = [bool]$launchConditionMatched
+        readinessFormat = if ($Readiness) { [string]$Readiness.format } else { $null }
+        readinessCondition = if ($Readiness) { $Readiness.launchCondition } else { $null }
+        preMeasureRefreshPerformed = [bool]($preMeasureRefreshes.Count -gt 0)
+        preMeasureRefreshComponents = @($preMeasureRefreshes | ForEach-Object { $_.component })
+        timingEndpointIdentity = 'starsector-log-v1/mod-list-start-to-vram-after-unload-preload'
+        timingConditionIdentity = "windows-startup-cohort-v1/$Condition"
         startedAt = $startedAt.ToString('o')
         finishedAt = (Get-Date).ToString('o')
         gameLogStartToGraphicsPreloadMs = $elapsedMs
@@ -698,6 +810,19 @@ log4j.appender.file.MaxBackupIndex=3
         transformationsApplied = if ($adapter) { $adapter.transformationsApplied } else { $null }
         exactMatches = if ($adapter) { $adapter.exactMatches } else { $null }
         transformationDeclined = if ($adapter) { $adapter.transformationDeclined } else { $null }
+        preparedAudioReadinessState = if ($Readiness) {
+            (Get-ReadinessComponent $Readiness 'prepared-audio').state
+        } else { $null }
+        preparedAudioReadinessFallbackState = if ($Readiness) {
+            (Get-ReadinessComponent $Readiness 'prepared-audio').fallbackState
+        } else { $null }
+        preparedAudioPathManifestStatus = if ($preparedAudioRuntime) { $preparedAudioRuntime.pathManifestStatus } else { $null }
+        preparedAudioPathHits = if ($preparedAudioRuntime) { $preparedAudioRuntime.pathHits } else { $null }
+        preparedAudioPathMisses = if ($preparedAudioRuntime) { $preparedAudioRuntime.pathMisses } else { $null }
+        preparedAudioByteHashLookups = if ($preparedAudioRuntime) { $preparedAudioRuntime.byteHashLookups } else { $null }
+        preparedAudioServedFromCache = if ($preparedAudioRuntime) { $preparedAudioRuntime.servedFromCache } else { $null }
+        preparedAudioDecodedByTheGame = if ($preparedAudioRuntime) { $preparedAudioRuntime.decodedByTheGame } else { $null }
+        preparedAudioFailures = if ($preparedAudioRuntime) { $preparedAudioRuntime.failures } else { $null }
         launcher = $launcher
         runDirectory = $RunDirectory
     }
@@ -754,29 +879,100 @@ New-Item -ItemType Directory -Path $sessionDirectory -Force | Out-Null
 
 $preparationPerformed = $false
 $prepareExitCode = $null
-if (@($Conditions | Where-Object { $_ -match 'preflight' }).Count -gt 0) {
+$preMeasureRefreshes = [System.Collections.Generic.List[object]]::new()
+$readinessInitial = [System.Collections.Generic.List[object]]::new()
+$readinessFinal = [System.Collections.Generic.List[object]]::new()
+$readinessByCondition = @{}
+$preparationReceipt = $null
+$preflightConditions = @($Conditions | Where-Object { Test-UsesPreflight $_ } | Select-Object -Unique)
+if ($preflightConditions.Count -gt 0) {
     $savedErrorPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    $cacheCheckArguments = @(
-        '-jar', $PreflightJar, 'run', '--game', $Game,
-        '--launcher', $vanillaLauncher,
-        '--texture-cache-dir', $Cache, '--no-scan',
-        '--optimization-preset', $OptimizationPreset, '--dry-run'
-    )
-    & $java @cacheCheckArguments *> (Join-Path $sessionDirectory 'preflight-cache-check.log')
-    $cacheIsCurrent = $LASTEXITCODE -eq 0
-    if ($cacheIsCurrent) {
-        $prepareExitCode = 0
-        'The exact installed profile already has a valid prepared cache.' |
-            Set-Content -LiteralPath (Join-Path $sessionDirectory 'preflight-prepare.log') -Encoding UTF8
-    } else {
-        $preparationPerformed = $true
-        $prepareArguments = @('-jar', $PreflightJar, 'prepare', '--game', $Game, '--cache-dir', $Cache, '--deep', '--verify-lookups')
-        & $java @prepareArguments 2>&1 | Tee-Object -FilePath (Join-Path $sessionDirectory 'preflight-prepare.log')
-        $prepareExitCode = $LASTEXITCODE
+    try {
+        foreach ($condition in $preflightConditions) {
+            $launcherForCondition = if (Test-UsesFastRendering $condition) {
+                $fastRenderingLauncher
+            } else {
+                $vanillaLauncher
+            }
+            $receipt = Invoke-LaunchReadiness $condition $launcherForCondition $java $sessionDirectory 'initial'
+            $readinessInitial.Add([pscustomobject]@{
+                condition = $condition
+                launcher = $launcherForCondition
+                receipt = $receipt
+            })
+            $readinessByCondition[$condition] = $receipt
+        }
+
+        $seenRefreshes = @{}
+        foreach ($entry in $readinessInitial) {
+            foreach ($action in @($entry.receipt.refreshActions)) {
+                $actionArguments = @($action.arguments | ForEach-Object { [string]$_ })
+                $refreshKey = ($actionArguments -join [char]0x1f)
+                if ($seenRefreshes.ContainsKey($refreshKey)) { continue }
+                $seenRefreshes[$refreshKey] = $true
+                $preparationPerformed = $true
+                $logName = 'preflight-refresh-{0}.log' -f ([string]$action.component -replace '[^A-Za-z0-9_.-]', '_')
+                $refreshLog = Join-Path $sessionDirectory $logName
+                $refreshArguments = @('-jar', $PreflightJar) + $actionArguments
+                & $java @refreshArguments 2>&1 | Tee-Object -FilePath $refreshLog
+                $refreshExitCode = $LASTEXITCODE
+                $preMeasureRefreshes.Add([pscustomobject]@{
+                    component = [string]$action.component
+                    arguments = $actionArguments
+                    exitCode = $refreshExitCode
+                    log = $refreshLog
+                })
+            }
+        }
+
+        $failedRefreshes = @($preMeasureRefreshes | Where-Object { $_.exitCode -ne 0 })
+        $prepareExitCode = if ($failedRefreshes.Count -gt 0) {
+            [int]$failedRefreshes[0].exitCode
+        } else {
+            0
+        }
+
+        if ($preMeasureRefreshes.Count -gt 0) {
+            foreach ($entry in $readinessInitial) {
+                $receipt = Invoke-LaunchReadiness $entry.condition $entry.launcher $java $sessionDirectory 'final'
+                $readinessFinal.Add([pscustomobject]@{
+                    condition = $entry.condition
+                    launcher = $entry.launcher
+                    receipt = $receipt
+                })
+                $readinessByCondition[$entry.condition] = $receipt
+            }
+        } else {
+            foreach ($entry in $readinessInitial) {
+                $readinessFinal.Add($entry)
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $savedErrorPreference
     }
-    $ErrorActionPreference = $savedErrorPreference
-    if ($prepareExitCode -ne 0) { throw "Preflight preparation failed with exit code $prepareExitCode" }
+
+    $unready = @($readinessFinal | Where-Object { -not $_.receipt.readyForMeasurement })
+    $preparationReceipt = [ordered]@{
+        format = 'starsector-preflight-windows-benchmark-preparation-v1'
+        measuredClockStarted = $false
+        readinessFormat = 'starsector-preflight-launch-readiness-v1'
+        initial = @($readinessInitial)
+        refreshPerformed = [bool]($preMeasureRefreshes.Count -gt 0)
+        refreshes = @($preMeasureRefreshes)
+        final = @($readinessFinal)
+        readyForMeasurement = [bool]($unready.Count -eq 0 -and $prepareExitCode -eq 0)
+        excluded = [bool]($unready.Count -gt 0 -or $prepareExitCode -ne 0)
+        exclusionReasons = @(
+            if ($prepareExitCode -ne 0) { 'required-refresh-failed' }
+            if ($unready.Count -gt 0) { 'required-component-unready-after-refresh' }
+        )
+    }
+    $preparationReceipt | ConvertTo-Json -Depth 12 |
+        Set-Content -LiteralPath (Join-Path $sessionDirectory 'preparation.json') -Encoding UTF8
+    if ($preparationReceipt.excluded) {
+        throw ('Benchmark preparation excluded measurement: ' + ($preparationReceipt.exclusionReasons -join ', '))
+    }
 }
 
 $enabledMods = Join-Path $Game 'mods\enabled_mods.json'
@@ -794,7 +990,7 @@ $cacheDefenderExcluded = @($defenderExclusions | Where-Object {
 }).Count -gt 0
 $sysMainStatus = try { [string](Get-Service -Name 'SysMain' -ErrorAction Stop).Status } catch { $null }
 $identity = [ordered]@{
-    version = 2
+    version = 3
     startedAt = (Get-Date).ToString('o')
     os = [System.Environment]::OSVersion.VersionString
     machine = $env:COMPUTERNAME
@@ -884,8 +1080,21 @@ $identity = [ordered]@{
     directLaunchOptions = "-DlaunchDirect=true -DstartRes=$Resolution -DstartFS=false -DstartSound=true"
     preparationPerformed = $preparationPerformed
     preparationExitCode = $prepareExitCode
+    readinessContract = if ($preflightConditions.Count -gt 0) {
+        'starsector-preflight-launch-readiness-v1'
+    } else { $null }
+    preparationReceipt = if ($preparationReceipt) { 'preparation.json' } else { $null }
+    preMeasureRefreshPerformed = [bool]($preMeasureRefreshes.Count -gt 0)
+    preMeasureRefreshes = @($preMeasureRefreshes)
+    intendedLaunchConditions = @($readinessFinal | ForEach-Object {
+        [string]$_.receipt.launchCondition.intended
+    } | Select-Object -Unique)
+    effectiveLaunchConditionsBeforeMeasurement = @($readinessFinal | ForEach-Object {
+        [string]$_.receipt.launchCondition.effective
+    } | Select-Object -Unique)
+    timingEndpointIdentity = 'starsector-log-v1/mod-list-start-to-vram-after-unload-preload'
 }
-$identity | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $sessionDirectory 'identity.json') -Encoding UTF8
+$identity | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $sessionDirectory 'identity.json') -Encoding UTF8
 
 $random = [System.Random]::new($Seed)
 $schedule = [System.Collections.Generic.List[object]]::new()
@@ -903,7 +1112,10 @@ foreach ($entry in $schedule) {
     $runNumber++
     $runDirectory = Join-Path $sessionDirectory ('{0:D2}-{1}-r{2}' -f $runNumber, $entry.condition, $entry.iteration)
     Write-Host ("[{0}/{1}] {2} iteration {3}" -f $runNumber, $schedule.Count, $entry.condition, $entry.iteration)
-    $result = Measure-OneRun $entry.condition $entry.iteration $runDirectory $java $vanillaLauncher $fastRenderingLauncher $gameLog $Resolution
+    $readiness = if (Test-UsesPreflight $entry.condition) {
+        $readinessByCondition[$entry.condition]
+    } else { $null }
+    $result = Measure-OneRun $entry.condition $entry.iteration $runDirectory $java $vanillaLauncher $fastRenderingLauncher $gameLog $Resolution $readiness
     $results.Add($result)
     $result | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $sessionDirectory 'results.jsonl') -Encoding UTF8
     $result | Format-List condition, iteration, accepted, gameLogStartToGraphicsPreloadMs, processStartToMainMenuInteractiveMs, gracefulShutdown, fastRenderingObserved, adapterHealthy, runtimeOwner
@@ -938,6 +1150,6 @@ $summary = [ordered]@{
     identity = $identity
     conditions = $conditionSummaries
 }
-$summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $sessionDirectory 'summary.json') -Encoding UTF8
-$summary | ConvertTo-Json -Depth 8
+$summary | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $sessionDirectory 'summary.json') -Encoding UTF8
+$summary | ConvertTo-Json -Depth 12
 if (-not $summary.accepted) { exit 1 }

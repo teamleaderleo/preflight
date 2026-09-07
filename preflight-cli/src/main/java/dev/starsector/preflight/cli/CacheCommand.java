@@ -24,6 +24,9 @@ final class CacheCommand {
     }
 
     static int execute(String[] args, int from) throws Exception {
+        if (from < args.length && "readiness".equals(args[from])) {
+            return LaunchReadinessCommand.execute(args, from + 1);
+        }
         boolean prune = false;
         boolean health = false;
         boolean inspect = false;

@@ -12,7 +12,7 @@
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchSettingsCommand.java": "aa6b5d538eb0805e8482bbe8c1c5c16b190c74a4f1d3fb20c20788f1013b3729",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightHome.java": "32bd3cb14080f145ba2eec5d0570718d7c93f9e50c9e07f7cc58ae740b5f1c1a",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java": "25c04ef8a33904f2e859de0d9f983a383d096b4ba4b46c5dcac1a608946787f5",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java": "3b57bc39f435e824cc27ed3ca585fedfce3b623c43239fa3d94ab132c0fa2246",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java": "e95d609c1dafc3c931341c698f62c62277a010328936c8642fe8d5d41f200d79",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/RuntimeProcessIdentity.java": "801f9f9b535be307a8d04fe0547f629ec67a7745b41a7ac86786942f06cf74e8",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/StopCommand.java": "61683ff7a7d9a5584b8b70326f3f9b6032b087247736062101cd360f95fbe562",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java": "5ea2d7f7f448d12cf6f2700429c4b9d6619f163f05f58ec845ce64e57a57c560",
