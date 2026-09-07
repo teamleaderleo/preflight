@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
 import { exerciseSyntheticPackageContract } from "./synthetic-package-contract.mjs";
 import { privilegedCommand } from "./privileged-command.mjs";
+import { cleanupMacInstall } from "./macos-install-cleanup.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
@@ -27,6 +28,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
   const dataDirectory = mkdtempSync(join(tmpdir(), "preflight-native-data-"));
   const dataSentinel = join(dataDirectory, "user-data-sentinel");
   let mounted = false;
+  let originalError;
   try {
     writeFileSync(dataSentinel, "retained outside the application bundle\n", { mode: 0o600 });
     run("hdiutil", [
@@ -71,11 +73,11 @@ export function exerciseMacInstall(directory = bundleDirectory) {
       allDataRemoval,
       engine: report.engine,
     };
+  } catch (error) {
+    originalError = error;
+    throw error;
   } finally {
-    if (mounted) run("hdiutil", ["detach", mountDirectory]);
-    rmSync(mountDirectory, { recursive: true, force: true });
-    rmSync(installDirectory, { recursive: true, force: true });
-    rmSync(dataDirectory, { recursive: true, force: true });
+    cleanupMacInstall({ mounted, mountDirectory, installDirectory, dataDirectory, originalError });
   }
 }
 
