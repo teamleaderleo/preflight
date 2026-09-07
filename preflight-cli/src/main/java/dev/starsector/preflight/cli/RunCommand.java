@@ -159,6 +159,13 @@ final class RunCommand {
         // that baked it is still the decoder installed. A current, fully content-validated manifest
         // additionally enables path lookup; without one the original exact byte-hash lookup remains.
         LaunchCacheContexts.PreparedAudio preparedAudio = cacheContexts.preparedAudio();
+        LaunchConditionIdentity.Snapshot launchCondition = LaunchConditionIdentity.from(
+                platform,
+                options,
+                textureContext != null && textureContext.preparedTextures(),
+                preparedAudio != null && preparedAudio.manifestIdentity() != null,
+                preparedAudio == null ? "game-decode"
+                        : preparedAudio.manifestIdentity() == null ? "byte-hash" : "path-indexed");
         Path preparedAudioCache = preparedAudio == null ? null : preparedAudio.cacheRoot();
         String audioDecoderIdentity = preparedAudio == null ? null : preparedAudio.decoderIdentity();
         String javaToolOptions = AgentLaunchConfig.builder(injectedAgentJar, recording)
@@ -320,7 +327,8 @@ final class RunCommand {
         try {
             writeMetadata(
                     metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
-                    null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
+                    null, options, directSettings, textureContext, preparedAudio, launchCondition,
+                    adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null, combatJvmSafeguard, macRosettaGcPolicy,
                     linuxStartupGcPolicy, windowsInitialHeapPolicy, textureUploadPolicy);
 
@@ -453,8 +461,8 @@ final class RunCommand {
                         metadata, target, command, runIdentity, launchId, started, ended,
                         measuredElapsedMillis, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
-                        options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure,
+                        options, directSettings, textureContext, preparedAudio, launchCondition,
+                        adapterReport, adapterAnalysis, console, childOutput, postprocessingFailures, executionFailure,
                     combatJvmSafeguard, macRosettaGcPolicy, linuxStartupGcPolicy,
                     windowsInitialHeapPolicy, textureUploadPolicy);
             } catch (IOException error) {
@@ -875,6 +883,8 @@ final class RunCommand {
             CommandLine options,
             DirectLaunchSettings directSettings,
             LaunchCacheContexts.Texture textureContext,
+            LaunchCacheContexts.PreparedAudio preparedAudio,
+            LaunchConditionIdentity.Snapshot launchCondition,
             Path adapterReport,
             Path adapterAnalysis,
             Path console,
@@ -955,6 +965,20 @@ final class RunCommand {
                 .map(OptimizationDomain::optionValue)
                 .sorted()
                 .toList());
+        values.put("launchCondition", launchCondition.toMap());
+        values.put("preparedAudioRequested", options.preparedAudio());
+        values.put("preparedAudioCacheDirectory", preparedAudio == null ? null : preparedAudio.cacheRoot());
+        values.put("preparedAudioDecoderIdentitySha256",
+                preparedAudio == null ? null : preparedAudio.decoderIdentity());
+        values.put("preparedAudioManifest", preparedAudio == null ? null : preparedAudio.manifest());
+        values.put("preparedAudioManifestIdentitySha256",
+                preparedAudio == null ? null : preparedAudio.manifestIdentity());
+        values.put("preparedAudioValidated",
+                preparedAudio != null && preparedAudio.manifestIdentity() != null);
+        values.put("preparedAudioFallbackState",
+                !options.preparedAudio() ? "disabled"
+                        : preparedAudio == null ? "game-decode"
+                                : preparedAudio.manifestIdentity() == null ? "byte-hash" : "path-indexed");
         values.put("adapterMode", options.adapterMode());
         values.put("adapterPlanScope", options.adapterPlanScope().optionValue());
         values.put("adapterReport", adapterReport);

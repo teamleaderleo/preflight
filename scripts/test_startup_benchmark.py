@@ -1330,8 +1330,47 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
 
     def test_shutdown_telemetry_is_bound_to_the_measured_run(self):
         self.assertIn("$gracefulShutdown = Stop-GameProcesses $Game $RunDirectory", self.guest)
-        self.assertIn("$accepted = $graphicsPreloadObserved -and $elapsedMs -ne $null -and $gracefulShutdown",
-                      self.guest)
+        self.assertIn("$exclusionReasons.Add('graceful-shutdown-failed')", self.guest)
+        self.assertIn("$accepted = $exclusionReasons.Count -eq 0", self.guest)
+
+    def test_guest_uses_engine_readiness_and_only_engine_refresh_actions(self):
+        preparation = self.guest[
+            self.guest.index("$preparationPerformed = $false"):
+            self.guest.index("$enabledMods =")
+        ]
+        self.assertIn("'cache', 'readiness'", self.guest)
+        self.assertIn("starsector-preflight-launch-readiness-v1", preparation)
+        self.assertIn("foreach ($action in @($entry.receipt.refreshActions))", preparation)
+        self.assertIn("$refreshArguments = @('-jar', $PreflightJar) + $actionArguments", preparation)
+        self.assertIn("$preMeasureRefreshes.Count -gt 0", preparation)
+        self.assertIn("Invoke-LaunchReadiness $entry.condition $entry.launcher $java $sessionDirectory 'final'",
+                      preparation)
+        self.assertIn("required-refresh-failed", preparation)
+        self.assertIn("required-component-unready-after-refresh", preparation)
+        self.assertNotIn("'run', '--game'", preparation)
+        self.assertNotIn("--dry-run", preparation)
+
+    def test_guest_current_cache_skips_refresh_and_partial_audio_is_explicit(self):
+        self.assertIn("if ($preMeasureRefreshes.Count -gt 0)", self.guest)
+        self.assertIn("preflight-partial-no-prepared-audio", self.guest)
+        policy = self.guest[
+            self.guest.index("function Get-LaunchPolicyArguments"):
+            self.guest.index("function Invoke-LaunchReadiness")
+        ]
+        self.assertIn("@('--disable-optimization-domain', 'prepared-audio')", policy)
+        self.assertIn("$arguments += @(Get-LaunchPolicyArguments $Condition)", self.guest)
+
+    def test_guest_records_intended_effective_condition_audio_fallback_and_exclusions(self):
+        for field in (
+                "intendedLaunchCondition", "effectiveLaunchCondition", "launchConditionMatched",
+                "preMeasureRefreshPerformed", "timingEndpointIdentity", "exclusionReasons",
+                "preparedAudioReadinessState", "preparedAudioPathManifestStatus",
+                "preparedAudioPathHits", "preparedAudioPathMisses",
+                "preparedAudioByteHashLookups", "preparedAudioDecodedByTheGame",
+                "preparedAudioFailures"):
+            with self.subTest(field=field):
+                self.assertIn(field, self.guest)
+        self.assertIn("launch-condition-mismatch", self.guest)
 
     @unittest.skipUnless(sys.platform == "win32", "CIM regression requires Windows PowerShell")
     def test_shutdown_with_real_cim_objects_and_mocked_effects(self):
@@ -1364,6 +1403,8 @@ class WindowsPreparedResourcesRunnerTest(unittest.TestCase):
             (["--windows-prepared-resources"], "preflight", "WindowsPreparedResources"),
             (["--disable-windows-prepared-resources"], "preflight", "WindowsDisablePreparedResources"),
             (["--condition", "preflight-prepared-resources"], "preflight-prepared-resources", None),
+            (["--condition", "preflight-partial-no-prepared-audio"],
+             "preflight-partial-no-prepared-audio", None),
         ]
         for args, condition, switch in cases:
             with self.subTest(args=args):
