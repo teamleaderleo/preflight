@@ -81,7 +81,6 @@ export function verifySourceLock(lock, root = repositoryRoot) {
     throw new Error("Capability source lock paths must be non-empty and sorted");
   }
   const aggregate = createHash("sha256");
-  const drift = [];
   for (const name of names) {
     if (name.startsWith("/") || name.split("/").some((part) => !part || part === "." || part === "..")) {
       throw new Error(`Invalid capability source path: ${name}`);
@@ -92,14 +91,17 @@ export function verifySourceLock(lock, root = repositoryRoot) {
     }
     const data = normalizedSourceBytes(join(root, name));
     const actual = sha256(data);
-    if (actual !== expected) drift.push({ name, expected, actual });
+    if (actual !== expected) {
+      // The gate is the point; leaving the reader to hand-compute the replacement digest was not.
+      throw new Error(
+        `Capability boundary changed without review: ${name}\n`
+        + "Read the diff, then accept it with: npm run capabilities:review --prefix preflight-desktop",
+      );
+    }
     aggregate.update(name);
     aggregate.update("\0");
     aggregate.update(actual);
     aggregate.update("\n");
-  }
-  if (drift.length > 0) {
-    throw new Error(`Capability boundary changed without review:\n${drift.map(({ name, expected, actual }) => `${name}\n  ${expected} -> ${actual}`).join("\n")}`);
   }
   return { digest: aggregate.digest("hex"), files: names.length };
 }
