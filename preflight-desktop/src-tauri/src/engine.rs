@@ -11,8 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::sync::{Arc, Mutex, Weak};
-use std::thread::JoinHandle;
+use std::sync::{Arc, Mutex, Weak, mpsc};
 use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, State};
@@ -66,6 +65,13 @@ impl EngineReads {
         state.children.retain(|child| child.strong_count() > 0);
         state.children.push(Arc::downgrade(&child));
         Ok(child)
+    }
+
+    fn is_closing(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .closing
     }
 
     fn cancel(&self) {
@@ -230,7 +236,8 @@ impl EngineCommand {
     ///
     /// The two pipes are drained on their own threads. `Command::output()` gets the same
     /// concurrency from the runtime; reading one to the end and then the other would deadlock
-    /// against a child that fills the pipe being read second.
+    /// against a child that fills the pipe being read second. Reader completion is reported over a
+    /// channel so collecting output never turns into an unbounded thread join.
     pub(crate) fn output_within(&mut self, budget: Duration) -> std::io::Result<Output> {
         self.output_registered(budget, None)
     }
@@ -254,6 +261,8 @@ impl EngineCommand {
         budget: Duration,
         reads: Option<&EngineReads>,
     ) -> std::io::Result<Output> {
+        // Charge process startup, execution, pipe collection, and teardown to one request budget.
+        let deadline = Instant::now() + budget;
         let command = self
             .prepared()
             .stdout(Stdio::piped())
@@ -262,33 +271,72 @@ impl EngineCommand {
             Some(reads) => reads.spawn(command)?,
             None => Arc::new(Mutex::new(command.spawn()?)),
         };
-        let (stdout, stderr) = {
+        let (reader_sender, reader_receiver) = mpsc::channel();
+        {
             let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
-            (drain(process.stdout.take()), drain(process.stderr.take()))
-        };
-        let deadline = Instant::now() + budget;
+            drain(
+                process.stdout.take(),
+                PipeKind::Stdout,
+                reader_sender.clone(),
+            );
+            drain(process.stderr.take(), PipeKind::Stderr, reader_sender.clone());
+        }
+        drop(reader_sender);
+
+        let mut status = None;
+        let mut stdout = None;
+        let mut stderr = None;
         loop {
-            let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
-            if let Some(status) = process.try_wait()? {
-                drop(process);
+            if reads.is_some_and(EngineReads::is_closing) {
+                if status.is_none() {
+                    terminate_and_reap(child.clone());
+                }
+                return Err(std::io::Error::new(
+                    ErrorKind::Interrupted,
+                    "Preflight is closing",
+                ));
+            }
+
+            while let Ok(message) = reader_receiver.try_recv() {
+                if let Err(error) = record_reader(message, &mut stdout, &mut stderr) {
+                    if status.is_none() {
+                        terminate_and_reap(child.clone());
+                    }
+                    return Err(error);
+                }
+            }
+
+            if status.is_none() {
+                let result = {
+                    let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
+                    process.try_wait()
+                };
+                match result {
+                    Ok(Some(child_status)) => status = Some(child_status),
+                    Ok(None) => {}
+                    Err(error) => {
+                        terminate_and_reap(child.clone());
+                        return Err(error);
+                    }
+                }
+            }
+
+            if status.is_some() && stdout.is_some() && stderr.is_some() {
                 return Ok(Output {
-                    status,
-                    stdout: collect(stdout),
-                    stderr: collect(stderr),
+                    status: status.take().expect("checked child status"),
+                    stdout: stdout.take().expect("checked stdout"),
+                    stderr: stderr.take().expect("checked stderr"),
                 });
             }
-            if Instant::now() >= deadline {
-                // Terminate and reap this exact child rather than leaving it to the OS, so a
-                // timed-out request cannot leave a Java process holding the install behind it.
-                let _ = process.kill();
-                let _ = process.wait();
-                // The readers are deliberately not joined. Killing the child closes only the pipe
-                // ends it holds; anything it spawned that inherited them keeps a writer open, and
-                // joining would block on a process this request never owned — which is the wait
-                // the budget exists to end. The threads exit when the last writer closes, and
-                // MAX_CAPTURED_BYTES bounds what they hold until then.
-                drop(stdout);
-                drop(stderr);
+
+            let now = Instant::now();
+            if now >= deadline {
+                if status.is_none() {
+                    // Kill only the process this request owns. If the signal has not become
+                    // waitable yet, a tiny detached reaper owns the final wait so request return
+                    // never depends on process scheduling after its deadline.
+                    terminate_and_reap(child.clone());
+                }
                 return Err(std::io::Error::new(
                     ErrorKind::TimedOut,
                     format!(
@@ -297,8 +345,29 @@ impl EngineCommand {
                     ),
                 ));
             }
-            drop(process);
-            std::thread::sleep(POLL_INTERVAL);
+
+            let remaining = deadline.saturating_duration_since(now);
+            match reader_receiver.recv_timeout(POLL_INTERVAL.min(remaining)) {
+                Ok(message) => {
+                    if let Err(error) = record_reader(message, &mut stdout, &mut stderr) {
+                        if status.is_none() {
+                            terminate_and_reap(child.clone());
+                        }
+                        return Err(error);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    if stdout.is_none() || stderr.is_none() {
+                        if status.is_none() {
+                            terminate_and_reap(child.clone());
+                        }
+                        return Err(std::io::Error::other(
+                            "Preflight engine output readers stopped before both pipes completed",
+                        ));
+                    }
+                }
+            }
         }
     }
 
@@ -330,30 +399,108 @@ impl EngineCommand {
     }
 }
 
-/// Reads one pipe to its end on its own thread, keeping at most [`MAX_CAPTURED_BYTES`]. Reading
-/// continues past the cap so the child never blocks on a full pipe; the excess is discarded.
-fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> JoinHandle<Vec<u8>> {
-    std::thread::spawn(move || {
-        let mut captured = Vec::new();
-        let Some(mut pipe) = pipe else {
-            return captured;
-        };
-        let mut buffer = [0u8; 16 * 1024];
-        while let Ok(read) = pipe.read(&mut buffer) {
-            if read == 0 {
-                break;
-            }
-            let room = MAX_CAPTURED_BYTES.saturating_sub(captured.len());
-            if room > 0 {
-                captured.extend_from_slice(&buffer[..read.min(room)]);
-            }
-        }
-        captured
-    })
+#[derive(Clone, Copy)]
+enum PipeKind {
+    Stdout,
+    Stderr,
 }
 
-fn collect(reader: JoinHandle<Vec<u8>>) -> Vec<u8> {
-    reader.join().unwrap_or_default()
+impl PipeKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Stdout => "stdout",
+            Self::Stderr => "stderr",
+        }
+    }
+}
+
+struct PipeRead {
+    kind: PipeKind,
+    result: std::io::Result<Vec<u8>>,
+}
+
+/// Reads one pipe to its end on its own thread, keeping at most [`MAX_CAPTURED_BYTES`]. Reading
+/// continues past the cap so the child never blocks on a full pipe; the excess is discarded.
+fn drain<R: Read + Send + 'static>(
+    pipe: Option<R>,
+    kind: PipeKind,
+    completed: mpsc::Sender<PipeRead>,
+) {
+    std::thread::spawn(move || {
+        let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drain_pipe(pipe)
+        })) {
+            Ok(result) => result,
+            Err(_) => Err(std::io::Error::other(format!(
+                "Preflight engine {} reader stopped unexpectedly",
+                kind.name()
+            ))),
+        };
+        let _ = completed.send(PipeRead { kind, result });
+    });
+}
+
+fn drain_pipe<R: Read>(pipe: Option<R>) -> std::io::Result<Vec<u8>> {
+    let mut captured = Vec::new();
+    let Some(mut pipe) = pipe else {
+        return Ok(captured);
+    };
+    let mut buffer = [0u8; 16 * 1024];
+    loop {
+        let read = pipe.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        let room = MAX_CAPTURED_BYTES.saturating_sub(captured.len());
+        if room > 0 {
+            captured.extend_from_slice(&buffer[..read.min(room)]);
+        }
+    }
+    Ok(captured)
+}
+
+fn record_reader(
+    message: PipeRead,
+    stdout: &mut Option<Vec<u8>>,
+    stderr: &mut Option<Vec<u8>>,
+) -> std::io::Result<()> {
+    let kind = message.kind;
+    let captured = message.result.map_err(|error| {
+        std::io::Error::new(
+            error.kind(),
+            format!("failed to read Preflight engine {}: {error}", kind.name()),
+        )
+    })?;
+    let slot = match kind {
+        PipeKind::Stdout => stdout,
+        PipeKind::Stderr => stderr,
+    };
+    if slot.replace(captured).is_some() {
+        return Err(std::io::Error::other(format!(
+            "Preflight engine {} reader completed more than once",
+            kind.name()
+        )));
+    }
+    Ok(())
+}
+
+/// Stop the directly owned child without making request return depend on an unbounded wait.
+///
+/// A successful immediate `try_wait` reaps inline. If the kill has not become observable yet, a
+/// detached reaper holds the child until `wait` completes. Reader threads are independent: an
+/// unowned descendant can keep an inherited pipe open without retaining request ownership.
+fn terminate_and_reap(child: Arc<Mutex<Child>>) {
+    let needs_reaper = {
+        let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
+        let _ = process.kill();
+        !matches!(process.try_wait(), Ok(Some(_)))
+    };
+    if needs_reaper {
+        std::thread::spawn(move || {
+            let mut process = child.lock().unwrap_or_else(|error| error.into_inner());
+            let _ = process.wait();
+        });
+    }
 }
 
 /// Returns `args` unchanged when every argument is ASCII, otherwise the sentinel-marked Base64
@@ -1080,7 +1227,7 @@ pub(crate) fn apply_cache_cleanup(
         );
     }
     let _operation = reserve_foreground(&app, &tracker, running)?;
-    cache_cleanup_json(&app, &game, true)
+    cache_health_json(&app, &game, Some(""))
 }
 
 #[tauri::command(async)]
@@ -1166,6 +1313,7 @@ pub(crate) fn get_evidence_cleanup(app: AppHandle) -> Result<Value, String> {
 pub(crate) fn apply_evidence_cleanup(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
+    game: String,
 ) -> Result<Value, String> {
     let running = tracker
         .0
@@ -1439,8 +1587,8 @@ mod windows_bundled_engine_tests {
 
 #[cfg(all(test, unix))]
 mod bounded_request_tests {
-    use super::{EngineCommand, EngineReads};
-    use std::io::ErrorKind;
+    use super::{EngineCommand, EngineReads, PipeKind, drain, record_reader};
+    use std::io::{ErrorKind, Read};
     use std::time::{Duration, Instant};
 
     /// A stand-in engine, driven by `sh` so the child's behaviour is written where it is read.
@@ -1477,8 +1625,11 @@ mod bounded_request_tests {
             game_survived,
             "read cancellation must not stop an ordinary game child"
         );
-        let output = worker.join().unwrap().unwrap();
-        assert!(!output.status.success());
+        let error = worker
+            .join()
+            .unwrap()
+            .expect_err("shutdown cancellation is explicit");
+        assert_eq!(error.kind(), ErrorKind::Interrupted);
         let late = fake_engine("exit 0")
             .output_registered(Duration::from_secs(60), Some(&reads))
             .unwrap_err();
@@ -1496,30 +1647,40 @@ mod bounded_request_tests {
         assert_eq!(error.kind(), ErrorKind::TimedOut);
         assert!(error.to_string().contains("didn't answer"), "{error}");
         assert!(
-            started.elapsed() < Duration::from_secs(30),
+            started.elapsed() < Duration::from_secs(2),
             "{:?}",
             started.elapsed()
         );
     }
 
     #[test]
-    fn a_stalled_child_filling_both_pipes_still_times_out() {
-        // Both pipes are filled well past any pipe buffer and then the child stalls. A reader that
-        // drained stdout to its end before touching stderr would block here rather than time out.
+    fn an_inherited_writer_after_direct_child_exit_cannot_extend_the_deadline() {
         let started = Instant::now();
-
         let error = fake_engine(
-            "yes out | head -c 2000000; yes err | head -c 2000000 1>&2; exec sleep 600",
+            "(sleep 3; printf late; printf late-error 1>&2) & printf direct; printf direct-error 1>&2; exit 0",
         )
-        .output_within(Duration::from_secs(2))
-        .expect_err("a stalled child must time out even after filling both pipes");
+        .output_within(Duration::from_millis(350))
+        .expect_err("an inherited pipe writer must not retain the request");
 
         assert_eq!(error.kind(), ErrorKind::TimedOut);
         assert!(
-            started.elapsed() < Duration::from_secs(30),
-            "{:?}",
+            started.elapsed() < Duration::from_secs(2),
+            "request waited for the descendant pipe writer: {:?}",
             started.elapsed()
         );
+    }
+
+    #[test]
+    fn simultaneous_stdout_and_stderr_pressure_is_drained_concurrently() {
+        let output = fake_engine(
+            "head -c 2000000 /dev/zero & out=$!; head -c 2000000 /dev/zero 1>&2 & err=$!; wait $out $err",
+        )
+        .output_within(Duration::from_secs(10))
+        .expect("both pressured pipes drain without deadlock");
+
+        assert!(output.status.success());
+        assert_eq!(output.stdout.len(), 2_000_000);
+        assert_eq!(output.stderr.len(), 2_000_000);
     }
 
     #[test]
@@ -1553,7 +1714,7 @@ mod bounded_request_tests {
     }
 
     #[test]
-    fn an_ordinary_request_still_returns_its_output_and_status() {
+    fn an_ordinary_request_still_returns_complete_output_and_status() {
         let output = fake_engine("printf answer; printf trouble 1>&2")
             .output_within(Duration::from_secs(30))
             .expect("an ordinary request succeeds");
@@ -1573,6 +1734,67 @@ mod bounded_request_tests {
         assert_eq!(String::from_utf8_lossy(&output.stderr), "refused");
     }
 
+    struct FailingReader;
+
+    impl Read for FailingReader {
+        fn read(&mut self, _buffer: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                ErrorKind::BrokenPipe,
+                "synthetic reader failure",
+            ))
+        }
+    }
+
+    #[test]
+    fn reader_failures_are_explicit_and_keep_the_stream_identity() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        drain(Some(FailingReader), PipeKind::Stdout, sender);
+        let message = receiver
+            .recv_timeout(Duration::from_secs(2))
+            .expect("reader reports its failure");
+        let mut stdout = None;
+        let mut stderr = None;
+        let error = record_reader(message, &mut stdout, &mut stderr)
+            .expect_err("reader failure must reach the caller");
+
+        assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+        assert!(error.to_string().contains("stdout"), "{error}");
+        assert!(error.to_string().contains("synthetic reader failure"), "{error}");
+    }
+
+    #[test]
+    fn shutdown_during_collection_returns_without_waiting_for_the_descendant() {
+        let reads = std::sync::Arc::new(EngineReads::default());
+        let worker_reads = reads.clone();
+        let started = Instant::now();
+        let worker = std::thread::spawn(move || {
+            fake_engine("(sleep 30; printf inherited) & exit 0")
+                .output_registered(Duration::from_secs(30), Some(&worker_reads))
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            if !reads.0.lock().unwrap().children.is_empty() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "read child did not register");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        reads.cancel();
+
+        let error = worker
+            .join()
+            .unwrap()
+            .expect_err("shutdown cancels collection");
+        assert_eq!(error.kind(), ErrorKind::Interrupted);
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "shutdown waited for inherited output: {:?}",
+            started.elapsed()
+        );
+    }
+
     #[test]
     fn a_later_request_works_after_one_timed_out() {
         let timed_out = fake_engine("exec sleep 600").output_within(Duration::from_millis(300));
@@ -1586,6 +1808,19 @@ mod bounded_request_tests {
             .expect("the next request is unaffected");
 
         assert_eq!(String::from_utf8_lossy(&output.stdout), "recovered");
+    }
+
+    #[test]
+    fn a_later_request_works_after_one_succeeds() {
+        let first = fake_engine("printf first")
+            .output_within(Duration::from_secs(30))
+            .expect("first request succeeds");
+        assert_eq!(String::from_utf8_lossy(&first.stdout), "first");
+
+        let second = fake_engine("printf second")
+            .output_within(Duration::from_secs(30))
+            .expect("the next request can reuse the request path");
+        assert_eq!(String::from_utf8_lossy(&second.stdout), "second");
     }
 
     #[test]
