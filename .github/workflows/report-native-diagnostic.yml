@@ -149,11 +149,12 @@ jobs:
               "                Ok(receipt) => ReportRecoveryOutcome::Accepted(Box::new(receipt)),\n",
               "report_transport.rs accepted recovery constructor",
           )
+          receipt_wrapper = "pub(crate) fn validate_report_receipt(\n    origin: &Url,\n    receipt: &ReportReceipt,\n    case_id: &str,\n    report: &ReportUploadInput,\n) -> Result<(), String> {\n    validate_report_receipt_identity(\n        origin,\n        receipt,\n        case_id,\n        &ReportRemoteIdentity {\n            product_version: env!(\"CARGO_PKG_VERSION\").to_string(),\n            bytes: report.bytes,\n            sha256: report.sha256.clone(),\n        },\n    )\n}\n\n"
           source = replace_once(
               source,
-              "pub(crate) fn validate_report_receipt(\n    origin: &Url,\n    receipt: &ReportReceipt,\n    case_id: &str,\n    report: &ReportUploadInput,\n) -> Result<(), String> {\n    validate_report_receipt_identity(\n        origin,\n        receipt,\n        case_id,\n        &ReportRemoteIdentity {\n            product_version: env!(\"CARGO_PKG_VERSION\").to_string(),\n            bytes: report.bytes,\n            sha256: report.sha256.clone(),\n        },\n    )\n}\n\n",
-              "",
-              "report_transport.rs unused receipt wrapper",
+              receipt_wrapper,
+              "#[cfg(test)]\n" + receipt_wrapper,
+              "report_transport.rs test-only receipt wrapper",
           )
           transport.write_text(source)
           PY
