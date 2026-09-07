@@ -940,9 +940,9 @@ pub(crate) async fn delete_run_report(
 #[cfg(test)]
 mod tests {
     use super::{
-        FAIL_NEXT_REPORT_STATE_PUBLISH, ReportDeletion, ReportReceipt, ReportRecoveryKind,
-        ReportRemoteIdentity, ReportStore, StoredReportState, SupportReportReceipt,
-        new_report_transaction_id,
+        FAIL_NEXT_REPORT_STATE_PUBLISH, REPORT_STATE_PREFIX, REPORT_STATE_SUFFIX, ReportDeletion,
+        ReportReceipt, ReportRecoveryKind, ReportRemoteIdentity, ReportStore, StoredReportState,
+        SupportReportReceipt, new_report_transaction_id,
     };
     use crate::operations::{OperationState, ReportUploadProcess};
     use crate::take_deferred_exit;
