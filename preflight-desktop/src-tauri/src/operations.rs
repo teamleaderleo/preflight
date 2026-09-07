@@ -391,6 +391,65 @@ mod tests {
         assert!(!operations.lock().unwrap().foreground_operation);
     }
 
+    #[cfg(unix)]
+    fn run_reserved_engine_request(
+        operations: &Mutex<OperationState>,
+        script: &str,
+        budget: std::time::Duration,
+    ) -> std::io::Result<std::process::Output> {
+        let _reservation =
+            reserve_foreground_with_exit(operations, operations.lock().unwrap(), || {}).unwrap();
+        let mut command = crate::engine::EngineCommand::for_test("sh");
+        command.arg("-c").arg(script);
+        command.output_within(budget)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn engine_timeout_releases_foreground_reservation_for_reuse() {
+        let operations = Mutex::new(OperationState::default());
+        let error = run_reserved_engine_request(
+            &operations,
+            "exec sleep 600",
+            std::time::Duration::from_millis(300),
+        )
+        .expect_err("the first request times out");
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        assert!(!operations.lock().unwrap().foreground_operation);
+
+        let output = run_reserved_engine_request(
+            &operations,
+            "printf recovered",
+            std::time::Duration::from_secs(5),
+        )
+        .expect("a new foreground reservation succeeds after timeout");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "recovered");
+        assert!(!operations.lock().unwrap().foreground_operation);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn engine_success_releases_foreground_reservation_for_reuse() {
+        let operations = Mutex::new(OperationState::default());
+        let first = run_reserved_engine_request(
+            &operations,
+            "printf first",
+            std::time::Duration::from_secs(5),
+        )
+        .expect("the first request succeeds");
+        assert_eq!(String::from_utf8_lossy(&first.stdout), "first");
+        assert!(!operations.lock().unwrap().foreground_operation);
+
+        let second = run_reserved_engine_request(
+            &operations,
+            "printf second",
+            std::time::Duration::from_secs(5),
+        )
+        .expect("a new foreground reservation succeeds after success");
+        assert_eq!(String::from_utf8_lossy(&second.stdout), "second");
+        assert!(!operations.lock().unwrap().foreground_operation);
+    }
+
     fn state_with_report_upload() -> OperationState {
         let (cancel, _receiver) = watch::channel(false);
         OperationState {
