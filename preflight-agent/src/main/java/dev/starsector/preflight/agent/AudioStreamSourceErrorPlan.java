@@ -80,7 +80,9 @@ final class AudioStreamSourceErrorPlan {
         clearTelemetry.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "beforeGeneration", "(I)V", false));
         constructor.instructions.insert(oldError, clearTelemetry);
-        constructor.instructions.set(store, new InsnNode(Opcodes.POP));
+        // Keep the pre-try assignment: vanilla's OpenALException handler rejoins code
+        // that reads this local even when alGenSources throws. The successful path
+        // overwrites it below with the actual post-generation error.
 
         InsnList actualError = new InsnList();
         actualError.add(new MethodInsnNode(

@@ -86,6 +86,23 @@ class AudioStreamSourceErrorPlanTest {
     }
 
     @Test
+    void generationExceptionKeepsTheVanillaErrorLocalInitialized() throws Exception {
+        byte[] transformed = AudioStreamSourceErrorPlan.transform(signature(), fixture(true));
+        assertNotNull(transformed);
+        var loader = new ByteArrayLoader(Map.of(
+                "sound.oo0O", transformed,
+                "org.lwjgl.openal.AL10", al10Fixture()));
+        Class<?> al10 = loader.loadClass("org.lwjgl.openal.AL10");
+        Class<?> player = loader.loadClass("sound.oo0O");
+        configure(al10, 40965, 0);
+        al10.getField("throwGeneration").setInt(null, 1);
+        InvocationTargetException failure = assertThrows(InvocationTargetException.class,
+                () -> player.getConstructor(List.class, String.class).newInstance(List.of(), "failure"));
+        assertTrue(failure.getCause() instanceof RuntimeException);
+        assertEquals(1, al10.getField("calls").getInt(null));
+    }
+
+    @Test
     void transitionProbeRetainsTheLatestEventsAfterStartupNoise() {
         for (int index = 0; index < 70; index++) {
             AudioMusicTransitionRuntime.created("track-" + index, index);
@@ -210,11 +227,23 @@ class AudioStreamSourceErrorPlanTest {
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, AL10, "alGetError", "()I", false));
         method.instructions.add(new VarInsnNode(Opcodes.ISTORE, 3));
+        LabelNode generationStart = new LabelNode();
+        LabelNode generationEnd = new LabelNode();
+        LabelNode generationHandler = new LabelNode();
+        LabelNode generationJoin = new LabelNode();
+        method.instructions.add(generationStart);
         method.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, AL10,
                 reviewed ? "alGenSources" : "changedGenSources",
                 "(Ljava/nio/IntBuffer;)V", false));
+        method.instructions.add(generationEnd);
+        method.instructions.add(new JumpInsnNode(Opcodes.GOTO, generationJoin));
+        method.instructions.add(generationHandler);
+        method.instructions.add(new InsnNode(Opcodes.POP));
+        method.instructions.add(generationJoin);
+        method.tryCatchBlocks.add(new org.objectweb.asm.tree.TryCatchBlockNode(
+                generationStart, generationEnd, generationHandler, "java/lang/RuntimeException"));
         method.instructions.add(new VarInsnNode(Opcodes.ILOAD, 3));
         method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, ok));
         method.instructions.add(new TypeInsnNode(Opcodes.NEW, "java/lang/RuntimeException"));
@@ -246,7 +275,7 @@ class AudioStreamSourceErrorPlanTest {
     private static byte[] al10Fixture() {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, AL10, null, "java/lang/Object", null);
-        for (String field : new String[] {"stale", "generation", "calls"}) {
+        for (String field : new String[] {"stale", "generation", "calls", "throwGeneration"}) {
             writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, field, "I", null, null)
                     .visitEnd();
         }
@@ -272,6 +301,16 @@ class AudioStreamSourceErrorPlanTest {
         MethodNode generate = new MethodNode(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                 "alGenSources", "(Ljava/nio/IntBuffer;)V", null, null);
+        LabelNode success = new LabelNode();
+        generate.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+                Opcodes.GETSTATIC, AL10, "throwGeneration", "I"));
+        generate.instructions.add(new JumpInsnNode(Opcodes.IFEQ, success));
+        generate.instructions.add(new TypeInsnNode(Opcodes.NEW, "java/lang/RuntimeException"));
+        generate.instructions.add(new InsnNode(Opcodes.DUP));
+        generate.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL,
+                "java/lang/RuntimeException", "<init>", "()V", false));
+        generate.instructions.add(new InsnNode(Opcodes.ATHROW));
+        generate.instructions.add(success);
         generate.instructions.add(new InsnNode(Opcodes.RETURN));
         generate.accept(writer);
         writer.visitEnd();
