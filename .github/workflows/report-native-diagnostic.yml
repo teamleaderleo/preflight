@@ -3,6 +3,7 @@ name: Report native diagnostic
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
       - uses: ./.github/actions/setup-build-jdk
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -36,7 +37,7 @@ jobs:
       - name: Prepare bounded desktop engine
         working-directory: preflight-desktop
         run: npm run engine:prepare:verified
-      - name: Repair native module ownership and validate
+      - name: Repair native report code and validate
         working-directory: preflight-desktop
         shell: bash
         run: |
@@ -44,20 +45,117 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          def replace_once(source: str, old: str, new: str, label: str) -> str:
+              if source.count(old) != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {source.count(old)}")
+              return source.replace(old, new, 1)
+
           lib = Path("src-tauri/src/lib.rs")
           source = lib.read_text()
-          marker = "mod automation;\n"
           if "mod bound_directory;\n" not in source:
-              if source.count(marker) != 1:
-                  raise SystemExit("lib.rs module marker changed")
-              source = source.replace(marker, "mod bound_directory;\n" + marker, 1)
-              lib.write_text(source)
+              source = replace_once(
+                  source,
+                  "mod automation;\n",
+                  "// Also compiled directly by tests/bound_directory.rs, which exercises helper-only APIs.\n#[allow(dead_code)]\nmod bound_directory;\nmod automation;\n",
+                  "lib.rs module marker",
+              )
+          elif "#[allow(dead_code)]\nmod bound_directory;\n" not in source:
+              source = replace_once(
+                  source,
+                  "mod bound_directory;\n",
+                  "// Also compiled directly by tests/bound_directory.rs, which exercises helper-only APIs.\n#[allow(dead_code)]\nmod bound_directory;\n",
+                  "lib.rs bound-directory declaration",
+              )
+          lib.write_text(source)
 
           reports = Path("src-tauri/src/reports.rs")
           source = reports.read_text()
-          source = source.replace('#[path = "bound_directory.rs"]\nmod bound_directory;\n\n', '', 1)
-          source = source.replace('use bound_directory::BoundDirectory;\n', 'use crate::bound_directory::BoundDirectory;\n', 1)
+          source = replace_once(
+              source,
+              '#[path = "bound_directory.rs"]\nmod bound_directory;\n\n',
+              '',
+              "reports.rs nested bound-directory module",
+          )
+          source = replace_once(
+              source,
+              'use bound_directory::BoundDirectory;\n',
+              'use crate::bound_directory::BoundDirectory;\n',
+              "reports.rs BoundDirectory import",
+          )
+          source = replace_once(
+              source,
+              "    ReportRecoveryOutcome, configured_report_origin, emit_report_state, perform_report_deletion,\n",
+              "    ReportRecoveryOutcome, ReportUploadAttempt, configured_report_origin, emit_report_state,\n    perform_report_deletion,\n",
+              "reports.rs transport imports",
+          )
+          source = replace_once(
+              source,
+              "    RemoteOutcomeUnknown {\n        case_id: Option<String>,\n        recovery: ReportRecoveryKind,\n        detail: String,\n    },\n",
+              "    RemoteOutcomeUnknown {\n        case_id: Option<String>,\n        // Transport tests assert the recovery phase; durable authority is persisted separately.\n        #[allow(dead_code)]\n        recovery: ReportRecoveryKind,\n        detail: String,\n    },\n",
+              "reports.rs recovery field",
+          )
+          accepted_arm = "            ReportRecoveryOutcome::Accepted(receipt) => {\n                let accepted = StoredReportState::Accepted {\n"
+          if source.count(accepted_arm) != 2:
+              raise SystemExit(
+                  f"reports.rs accepted recovery arms: expected 2 matches, found {source.count(accepted_arm)}"
+              )
+          source = source.replace(
+              accepted_arm,
+              "            ReportRecoveryOutcome::Accepted(receipt) => {\n                let receipt = *receipt;\n                let accepted = StoredReportState::Accepted {\n",
+          )
+          source = replace_once(
+              source,
+              "        &transaction_id,\n        id,\n        cancel_receiver,\n",
+              "        ReportUploadAttempt {\n            transaction_id: &transaction_id,\n            id,\n            cancel: cancel_receiver,\n        },\n",
+              "reports.rs upload attempt",
+          )
           reports.write_text(source)
+
+          transport = Path("src-tauri/src/report_transport.rs")
+          source = transport.read_text()
+          source = replace_once(
+              source,
+              "    Accepted(ReportReceipt),\n",
+              "    Accepted(Box<ReportReceipt>),\n",
+              "report_transport.rs boxed recovery receipt",
+          )
+          source = replace_once(
+              source,
+              "#[derive(Debug)]\nenum CreateCaseFailure {\n",
+              "pub(crate) struct ReportUploadAttempt<'a> {\n    pub(crate) transaction_id: &'a str,\n    pub(crate) id: u64,\n    pub(crate) cancel: watch::Receiver<bool>,\n}\n\n#[derive(Debug)]\nenum CreateCaseFailure {\n",
+              "report_transport.rs upload-attempt type",
+          )
+          source = replace_once(
+              source,
+              "    transaction_id: &str,\n    id: u64,\n    mut cancel: watch::Receiver<bool>,\n",
+              "    attempt: ReportUploadAttempt<'_>,\n",
+              "report_transport.rs upload signature",
+          )
+          source = replace_once(
+              source,
+              ") -> Result<ReportReceipt, ReportUploadError> {\n    if archive.len() != report.bytes {\n",
+              ") -> Result<ReportReceipt, ReportUploadError> {\n    let ReportUploadAttempt {\n        transaction_id,\n        id,\n        mut cancel,\n    } = attempt;\n    if archive.len() != report.bytes {\n",
+              "report_transport.rs attempt destructure",
+          )
+          source = replace_once(
+              source,
+              "        &transaction_id,\n        id,\n        cancel,\n        |_grant, _recovery| Ok(()),\n",
+              "        ReportUploadAttempt {\n            transaction_id: &transaction_id,\n            id,\n            cancel,\n        },\n        |_grant, _recovery| Ok(()),\n",
+              "report_transport.rs test upload attempt",
+          )
+          source = replace_once(
+              source,
+              "                Ok(receipt) => ReportRecoveryOutcome::Accepted(receipt),\n",
+              "                Ok(receipt) => ReportRecoveryOutcome::Accepted(Box::new(receipt)),\n",
+              "report_transport.rs accepted recovery constructor",
+          )
+          source = replace_once(
+              source,
+              "pub(crate) fn validate_report_receipt(\n    origin: &Url,\n    receipt: &ReportReceipt,\n    case_id: &str,\n    report: &ReportUploadInput,\n) -> Result<(), String> {\n    validate_report_receipt_identity(\n        origin,\n        receipt,\n        case_id,\n        &ReportRemoteIdentity {\n            product_version: env!(\"CARGO_PKG_VERSION\").to_string(),\n            bytes: report.bytes,\n            sha256: report.sha256.clone(),\n        },\n    )\n}\n\n",
+              "",
+              "report_transport.rs unused receipt wrapper",
+          )
+          transport.write_text(source)
           PY
           cargo fmt --manifest-path src-tauri/Cargo.toml
           node scripts/review-capability-lock.mjs
@@ -69,7 +167,7 @@ jobs:
       - name: Publish validated native correction and retire diagnostic
         shell: bash
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
           rm .github/workflows/report-native-diagnostic.yml
@@ -77,7 +175,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add preflight-desktop/src-tauri/src/lib.rs \
                   preflight-desktop/src-tauri/src/reports.rs \
+                  preflight-desktop/src-tauri/src/report_transport.rs \
                   preflight-desktop/capabilities/release-receipt-source-lock.json \
                   .github/workflows/report-native-diagnostic.yml
-          git commit -m "fix(reports): use shared private directory capability"
+          git commit -m "fix(reports): finish native report validation"
           git push origin "HEAD:${HEAD_REF}"
