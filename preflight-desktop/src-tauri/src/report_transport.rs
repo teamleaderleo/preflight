@@ -179,7 +179,8 @@ pub(crate) async fn perform_report_upload_with_state(
             yield Ok(chunk.to_vec());
         }
     };
-    let upload_url = match validated_case_url(&origin, &grant.upload.url, &grant.case_id, "archive") {
+    let upload_url = match validated_case_url(&origin, &grant.upload.url, &grant.case_id, "archive")
+    {
         Ok(url) => url,
         Err(detail) => {
             return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
@@ -215,12 +216,13 @@ pub(crate) async fn perform_report_upload_with_state(
             }
         },
     };
-    let upload: Value = match response_json(upload_response, "The run-report archive was rejected").await {
-        Ok(upload) => upload,
-        Err(detail) => {
-            return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
-        }
-    };
+    let upload: Value =
+        match response_json(upload_response, "The run-report archive was rejected").await {
+            Ok(upload) => upload,
+            Err(detail) => {
+                return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
+            }
+        };
     if upload.pointer("/status").and_then(Value::as_str) != Some("uploaded")
         || upload.pointer("/caseId").and_then(Value::as_str) != Some(&grant.case_id)
         || upload.pointer("/bytes").and_then(Value::as_u64) != Some(archive.len())
@@ -276,9 +278,11 @@ pub(crate) async fn perform_report_upload(
     emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
 ) -> Result<ReportReceipt, ReportUploadError> {
     let snapshot = validated_report_snapshot(&report).map_err(ReportUploadError::Failed)?;
-    if snapshot.path != archive.canonicalize().map_err(|error| {
-        ReportUploadError::Failed(format!("Could not resolve the diagnostics ZIP: {error}"))
-    })? {
+    if snapshot.path
+        != archive.canonicalize().map_err(|error| {
+            ReportUploadError::Failed(format!("Could not resolve the diagnostics ZIP: {error}"))
+        })?
+    {
         return Err(ReportUploadError::Failed(
             "The diagnostics ZIP path changed before upload.".to_string(),
         ));
@@ -409,11 +413,12 @@ async fn request_report_case(
         ))
     })?;
     if !status.is_success() {
-        return Err(CreateCaseFailure::Rejected(response_failure_bytes(
-            status,
-            &bytes,
-            "The report case was rejected",
-        )));
+        let detail = response_failure_bytes(status, &bytes, "The report case was rejected");
+        return Err(if status.is_server_error() {
+            CreateCaseFailure::RemoteOutcomeUnknown(detail)
+        } else {
+            CreateCaseFailure::Rejected(detail)
+        });
     }
     let grant: CreateReportCaseResponse = serde_json::from_slice(&bytes).map_err(|error| {
         CreateCaseFailure::RemoteOutcomeUnknown(format!(
@@ -443,7 +448,8 @@ async fn finalize_granted_case(
                 transport_detail(&error)
             )
         })?;
-    let receipt: ReportReceipt = response_json(response, "The run report could not be finalized").await?;
+    let receipt: ReportReceipt =
+        response_json(response, "The run report could not be finalized").await?;
     validate_report_receipt_identity(origin, &receipt, &grant.case_id, identity)?;
     Ok(receipt)
 }
@@ -962,21 +968,30 @@ mod tests {
             case_id: case_id.to_string(),
             upload: ReportGrantEndpoint {
                 method: "PUT".to_string(),
-                url: origin.join(&format!("v1/cases/{case_id}/archive")).unwrap().to_string(),
+                url: origin
+                    .join(&format!("v1/cases/{case_id}/archive"))
+                    .unwrap()
+                    .to_string(),
                 content_type: Some("application/zip".to_string()),
                 expires_at: Some("2026-09-07T13:00:00Z".to_string()),
                 token: "upload.signature".to_string(),
             },
             finalize: ReportGrantEndpoint {
                 method: "POST".to_string(),
-                url: origin.join(&format!("v1/cases/{case_id}/finalize")).unwrap().to_string(),
+                url: origin
+                    .join(&format!("v1/cases/{case_id}/finalize"))
+                    .unwrap()
+                    .to_string(),
                 content_type: None,
                 expires_at: None,
                 token: "upload.signature".to_string(),
             },
             deletion: ReportGrantEndpoint {
                 method: "DELETE".to_string(),
-                url: origin.join(&format!("v1/cases/{case_id}")).unwrap().to_string(),
+                url: origin
+                    .join(&format!("v1/cases/{case_id}"))
+                    .unwrap()
+                    .to_string(),
                 content_type: None,
                 expires_at: None,
                 token: "delete.signature".to_string(),
@@ -1019,14 +1034,8 @@ mod tests {
             sha256: "a".repeat(64),
         };
 
-        let outcome = recover_granted_report(
-            &short_client(),
-            &origin,
-            &grant,
-            &identity,
-            Finalize,
-        )
-        .await;
+        let outcome =
+            recover_granted_report(&short_client(), &origin, &grant, &identity, Finalize).await;
 
         assert!(matches!(
             outcome,
@@ -1037,4 +1046,127 @@ mod tests {
         ));
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn remote_deletion_leaves_local_zip_unchanged() {
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::thread;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let origin = Url::parse(&format!("http://{address}/")).unwrap();
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        let deletion = crate::reports::ReportDeletion {
+            method: "DELETE".to_string(),
+            url: origin
+                .join(&format!("v1/cases/{case_id}"))
+                .unwrap()
+                .to_string(),
+            token: "delete.signature".to_string(),
+        };
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 2048];
+            loop {
+                let read = stream.read(&mut buffer).unwrap();
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&buffer[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8_lossy(&request);
+            assert!(request.starts_with(&format!("DELETE /v1/cases/{case_id} HTTP/1.1")));
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .contains("authorization: bearer delete.signature")
+            );
+            stream
+                .write_all(
+                    b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let archive = std::env::temp_dir().join(format!(
+            "preflight-report-local-delete-test-{}-{unique}.zip",
+            std::process::id()
+        ));
+        let local_bytes = b"local ZIP survives remote deletion".to_vec();
+        fs::write(&archive, &local_bytes).unwrap();
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        assert!(
+            super::perform_report_deletion(client, origin, deletion)
+                .await
+                .unwrap()
+        );
+        server.join().unwrap();
+        assert_eq!(local_bytes, fs::read(&archive).unwrap());
+        fs::remove_file(archive).unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn create_case_server_error_is_remote_outcome_unknown() {
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::thread;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let origin = Url::parse(&format!("http://{address}/")).unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request).unwrap();
+            let body = r#"{"error":"internal error"}"#;
+            write!(
+                stream,
+                "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        });
+        let identity = ReportRemoteIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            bytes: 3,
+            sha256: "a".repeat(64),
+        };
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let outcome = super::request_report_case(
+            &client,
+            &origin,
+            "00000000-0000-4000-8000-000000000001",
+            &identity,
+        )
+        .await;
+        server.join().unwrap();
+        assert!(matches!(
+            outcome,
+            Err(super::CreateCaseFailure::RemoteOutcomeUnknown(_))
+        ));
+    }
 }

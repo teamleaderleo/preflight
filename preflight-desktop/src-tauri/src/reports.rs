@@ -1,16 +1,16 @@
 #[path = "bound_directory.rs"]
 mod bound_directory;
 
-use bound_directory::BoundDirectory;
 use crate::operations::{
     OperationCoordinator, ReportUploadProcess, refuse_benchmark_for_report, refuse_update_install,
 };
 use crate::report_transport::{
     ReportRecoveryOutcome, configured_report_origin, emit_report_state, perform_report_deletion,
-    perform_report_upload_with_state, recover_granted_report, recover_pending_report, report_client,
-    validated_report_snapshot,
+    perform_report_upload_with_state, recover_granted_report, recover_pending_report,
+    report_client, validated_report_snapshot,
 };
 use crate::take_deferred_exit;
+use bound_directory::BoundDirectory;
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -363,8 +363,9 @@ impl ReportStore {
     fn open_at(anchor: &Path) -> Result<Self, String> {
         fs::create_dir_all(anchor)
             .map_err(|error| format!("Could not create private report storage root: {error}"))?;
-        let directory = BoundDirectory::open_or_create(anchor, Path::new(REPORT_STATE_DIRECTORY))
-            .map_err(|error| format!("Could not open private report storage: {error}"))?;
+        let directory =
+            BoundDirectory::open_or_create(anchor, Path::new(REPORT_STATE_DIRECTORY))
+                .map_err(|error| format!("Could not open private report storage: {error}"))?;
         Ok(Self { directory })
     }
 
@@ -397,7 +398,9 @@ impl ReportStore {
                 Ok(bytes) => match serde_json::from_slice::<StoredReportState>(&bytes) {
                     Ok(state) if OsStr::new(&state.file_name()) == name.as_os_str() => state,
                     Ok(_) => {
-                        invalid.push("private report state filename does not match its contents".to_string());
+                        invalid.push(
+                            "private report state filename does not match its contents".to_string(),
+                        );
                         continue;
                     }
                     Err(error) => {
@@ -415,7 +418,8 @@ impl ReportStore {
                 Some(current) if state.priority() > current.priority() => selected = Some(state),
                 Some(current) if state.priority() == current.priority() && state != *current => {
                     return Err(
-                        "Private report storage contains multiple active report states.".to_string(),
+                        "Private report storage contains multiple active report states."
+                            .to_string(),
                     );
                 }
                 Some(_) => {}
@@ -454,7 +458,9 @@ impl ReportStore {
                 .read_bytes(name_os, REPORT_STATE_LIMIT)
                 .map_err(|error| format!("Could not read private report state: {error}"))?;
             if existing != bytes {
-                return Err("Private report state publication collided with different data.".to_string());
+                return Err(
+                    "Private report state publication collided with different data.".to_string(),
+                );
             }
         } else {
             let mut file = self
@@ -465,7 +471,9 @@ impl ReportStore {
                 drop(file);
                 let _ = self.directory.delete_file(name_os);
                 let _ = self.directory.sync();
-                return Err(format!("Could not durably write private report state: {error}"));
+                return Err(format!(
+                    "Could not durably write private report state: {error}"
+                ));
             }
             self.directory
                 .sync()
@@ -566,9 +574,9 @@ async fn recover_stored_case(
                 store.publish(&accepted)?;
                 Ok(Some(ReportTransactionResult::accepted(&receipt)))
             }
-            ReportRecoveryOutcome::RemoteOutcomeUnknown { case_id, detail } => Ok(Some(
-                ReportTransactionResult::unknown(case_id, detail),
-            )),
+            ReportRecoveryOutcome::RemoteOutcomeUnknown { case_id, detail } => {
+                Ok(Some(ReportTransactionResult::unknown(case_id, detail)))
+            }
         },
         StoredReportState::Granted {
             transaction_id,
@@ -595,9 +603,9 @@ async fn recover_stored_case(
                     ))),
                 }
             }
-            ReportRecoveryOutcome::RemoteOutcomeUnknown { case_id, detail } => Ok(Some(
-                ReportTransactionResult::unknown(case_id, detail),
-            )),
+            ReportRecoveryOutcome::RemoteOutcomeUnknown { case_id, detail } => {
+                Ok(Some(ReportTransactionResult::unknown(case_id, detail)))
+            }
         },
     }
 }
