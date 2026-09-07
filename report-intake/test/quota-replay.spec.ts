@@ -23,7 +23,7 @@ it("extends an uncommitted reservation when keyed case creation is replayed", as
   expect(await quota.beginUpload(caseId, now + 600, now + 200)).toBe("active");
 });
 
-it("does not revive a replayed reservation after its original lease already expired", async () => {
+it("recreates one fresh reservation when replay happens after the old lease expired", async () => {
   const quota = quotaFor(`test-replay-expired-${crypto.randomUUID()}`);
   const caseId = crypto.randomUUID();
   const now = 4_000_000;
@@ -31,8 +31,8 @@ it("does not revive a replayed reservation after its original lease already expi
   expect(await quota.reserve(caseId, 6, now + 100, 10, now))
     .toEqual({ accepted: true, usedBytes: 6 });
 
-  // Once the old uncommitted lease is already reclaimable, replay creates one fresh reservation
-  // with the same deterministic case ID and fresh grant lifetime.
+  // Once the old uncommitted lease is reclaimable, replay creates one fresh reservation with the
+  // same deterministic case ID and the fresh grant lifetime.
   expect(await quota.reserve(caseId, 6, now + 500, 10, now + 101))
     .toEqual({ accepted: true, usedBytes: 6 });
   expect(await quota.beginUpload(caseId, now + 600, now + 200)).toBe("active");
