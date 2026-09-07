@@ -29,6 +29,8 @@ local command receipt `a77136ffc0c1e499`). The capability source lock still matc
 all 32 guarded files. A broader Mac script-test invocation without preparing an
 engine yielded 155 passes and five missing-artifact errors; that attempt is
 retained, not counted as a complete release-contract pass.
+After preparing the verified candidate engine normally on Big Red, all 160
+desktop release-script tests passed (receipt `22b0754cf6df1e1a`).
 
 ## Native results and remaining FastRendering gate (#1269)
 
