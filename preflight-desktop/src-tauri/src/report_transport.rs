@@ -1,6 +1,7 @@
 use crate::reports::{
     CreateReportCaseRequest, CreateReportCaseResponse, ReportDeletion, ReportGrantEndpoint,
-    ReportReceipt, ReportUploadError, ReportUploadInput, ReportUploadStateEvent,
+    ReportReceipt, ReportRecoveryKind, ReportRemoteIdentity, ReportUploadError, ReportUploadInput,
+    ReportUploadStateEvent,
 };
 use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode, redirect::Policy};
@@ -8,11 +9,11 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::io::Read;
+use std::io::{self, Read};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::io::AsyncReadExt;
 use tokio::sync::watch;
 use url::Url;
 
@@ -20,6 +21,36 @@ const REPORT_INTAKE_ORIGIN: Option<&str> = option_env!("PREFLIGHT_REPORT_INTAKE_
 const REPORT_PROTOCOL_VERSION: u32 = 1;
 const REPORT_RESPONSE_LIMIT: usize = 64 * 1024;
 const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
+const REPORT_TRANSACTION_HEADER: &str = "preflight-report-transaction";
+
+#[derive(Clone)]
+pub(crate) struct ValidatedReportSnapshot {
+    #[cfg(test)]
+    path: PathBuf,
+    bytes: Arc<[u8]>,
+}
+
+impl ValidatedReportSnapshot {
+    fn len(&self) -> u64 {
+        self.bytes.len() as u64
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ReportRecoveryOutcome {
+    Accepted(ReportReceipt),
+    CleanupConfirmed,
+    RemoteOutcomeUnknown {
+        case_id: Option<String>,
+        detail: String,
+    },
+}
+
+#[derive(Debug)]
+enum CreateCaseFailure {
+    Rejected(String),
+    RemoteOutcomeUnknown(String),
+}
 
 pub(crate) async fn perform_report_deletion(
     client: Client,
@@ -48,112 +79,117 @@ pub(crate) async fn perform_report_deletion(
     Ok(true)
 }
 
-pub(crate) async fn perform_report_upload(
+pub(crate) async fn perform_report_upload_with_state(
     client: Client,
     origin: Url,
-    archive: PathBuf,
+    archive: ValidatedReportSnapshot,
     report: ReportUploadInput,
+    transaction_id: &str,
     id: u64,
     mut cancel: watch::Receiver<bool>,
+    persist_grant: impl Fn(&CreateReportCaseResponse, ReportRecoveryKind) -> Result<(), String>,
     emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
 ) -> Result<ReportReceipt, ReportUploadError> {
+    if archive.len() != report.bytes {
+        return Err(ReportUploadError::Failed(
+            "The immutable diagnostics snapshot no longer matches its disclosed byte count."
+                .to_string(),
+        ));
+    }
     if *cancel.borrow() {
         return Err(ReportUploadError::Cancelled);
     }
-    let create_url = origin.join("v1/cases").map_err(|error| {
-        ReportUploadError::Failed(format!("The report intake URL is invalid: {error}"))
-    })?;
-    let create = client
-        .post(create_url)
-        .json(&CreateReportCaseRequest {
-            protocol_version: REPORT_PROTOCOL_VERSION,
-            product_version: env!("CARGO_PKG_VERSION"),
-            bytes: report.bytes,
-            sha256: &report.sha256,
-        })
-        .send();
-    let create_response = tokio::select! {
+    let identity = ReportRemoteIdentity {
+        product_version: env!("CARGO_PKG_VERSION").to_string(),
+        bytes: report.bytes,
+        sha256: report.sha256.clone(),
+    };
+    let create = request_report_case(&client, &origin, transaction_id, &identity);
+    tokio::pin!(create);
+    let grant = tokio::select! {
         changed = cancel.changed() => {
             let _ = changed;
-            return Err(ReportUploadError::Cancelled);
+            return Err(ReportUploadError::RemoteOutcomeUnknown {
+                case_id: None,
+                recovery: ReportRecoveryKind::CreateThenDelete,
+                detail: "Upload cancellation raced with case creation. Preflight saved the transaction identity and will reconcile the remote case before another report is created. The local ZIP is unchanged.".to_string(),
+            });
         }
-        response = create => response.map_err(|error| ReportUploadError::Failed(
-            format!("Could not create a run-report case: {}", transport_detail(&error))
-        ))?,
+        response = create.as_mut() => match response {
+            Ok(grant) => grant,
+            Err(CreateCaseFailure::Rejected(detail)) => return Err(ReportUploadError::Failed(
+                format!("{detail} No retained report case was accepted; the local ZIP is unchanged.")
+            )),
+            Err(CreateCaseFailure::RemoteOutcomeUnknown(detail)) => {
+                return Err(ReportUploadError::RemoteOutcomeUnknown {
+                    case_id: None,
+                    recovery: ReportRecoveryKind::CreateThenDelete,
+                    detail: format!(
+                        "{detail} Preflight saved the transaction identity and will reconcile this case before another report is created. The local ZIP is unchanged."
+                    ),
+                });
+            }
+        },
     };
-    let grant: CreateReportCaseResponse =
-        response_json(create_response, "The report case was rejected")
-            .await
-            .map_err(ReportUploadError::Failed)?;
-    validate_case_grant(&origin, &grant, &report).map_err(ReportUploadError::Failed)?;
+
+    if let Err(error) = persist_grant(&grant, ReportRecoveryKind::Delete) {
+        return Err(match delete_granted_case(&client, &origin, &grant).await {
+            Ok(()) => ReportUploadError::Failed(format!(
+                "Preflight could not durably save deletion authority before upload: {error}. The server case was deleted and the local ZIP is unchanged."
+            )),
+            Err(cleanup) => ReportUploadError::RemoteOutcomeUnknown {
+                case_id: Some(grant.case_id.clone()),
+                recovery: ReportRecoveryKind::CreateThenDelete,
+                detail: format!(
+                    "Preflight could not durably save the case grant: {error}. Deletion of case {} could not be confirmed: {cleanup}. The saved transaction identity can recover and delete this case later; the local ZIP is unchanged.",
+                    grant.case_id
+                ),
+            },
+        });
+    }
 
     emit(
         ReportUploadStateEvent::new("uploading", id, 0, report.bytes)
             .with_case(grant.case_id.clone()),
     );
     if *cancel.borrow() {
-        delete_granted_case(&client, &origin, &grant)
-            .await
-            .map_err(|detail| {
-                ReportUploadError::Failed(format!(
-                    "Upload cancellation could not confirm deletion of case {}: {detail}",
-                    grant.case_id,
-                ))
-            })?;
-        return Err(ReportUploadError::Cancelled);
+        return Err(cancelled_cleanup(&client, &origin, &grant).await);
     }
-    let mut stream_cancel = cancel.clone();
+
+    let stream_cancel = cancel.clone();
     let stream_emit = emit.clone();
     let case_id = grant.case_id.clone();
     let total = report.bytes;
+    let snapshot = Arc::clone(&archive.bytes);
     let stream = async_stream::stream! {
-        let mut file = match tokio::fs::File::open(&archive).await {
-            Ok(file) => file,
-            Err(error) => {
-                yield Err::<Vec<u8>, std::io::Error>(error);
-                return;
-            }
-        };
-        let mut buffer = vec![0_u8; 64 * 1024];
         let mut uploaded = 0_u64;
-        loop {
+        for chunk in snapshot.chunks(64 * 1024) {
             if *stream_cancel.borrow() {
-                yield Err(std::io::Error::new(
-                    std::io::ErrorKind::Interrupted,
+                yield Err::<Vec<u8>, io::Error>(io::Error::new(
+                    io::ErrorKind::Interrupted,
                     "report upload cancelled",
                 ));
                 return;
             }
-            let read_result: std::io::Result<usize> = tokio::select! {
-                changed = stream_cancel.changed() => {
-                    let _ = changed;
-                    Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "report upload cancelled"))
-                }
-                read = file.read(&mut buffer) => read,
-            };
-            let read = match read_result {
-                Ok(read) => read,
-                Err(error) => {
-                    yield Err(error);
-                    return;
-                }
-            };
-            if read == 0 {
-                break;
-            }
-            uploaded = uploaded.saturating_add(read as u64);
-            stream_emit(ReportUploadStateEvent::new("uploading", id, uploaded, total)
-                .with_case(case_id.clone()));
-            yield Ok(buffer[..read].to_vec());
+            uploaded = uploaded.saturating_add(chunk.len() as u64);
+            stream_emit(
+                ReportUploadStateEvent::new("uploading", id, uploaded, total)
+                    .with_case(case_id.clone()),
+            );
+            yield Ok(chunk.to_vec());
         }
     };
-    let upload_url = validated_case_url(&origin, &grant.upload.url, &grant.case_id, "archive")
-        .map_err(ReportUploadError::Failed)?;
+    let upload_url = match validated_case_url(&origin, &grant.upload.url, &grant.case_id, "archive") {
+        Ok(url) => url,
+        Err(detail) => {
+            return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
+        }
+    };
     let upload_request = client
         .put(upload_url)
         .bearer_auth(&grant.upload.token)
         .header(reqwest::header::CONTENT_TYPE, "application/zip")
-        .header(reqwest::header::CONTENT_LENGTH, report.bytes)
+        .header(reqwest::header::CONTENT_LENGTH, archive.len())
         .body(reqwest::Body::wrap_stream(stream))
         .send();
     tokio::pin!(upload_request);
@@ -161,24 +197,12 @@ pub(crate) async fn perform_report_upload(
         changed = cancel.changed() => {
             let _ = changed;
             let _ = upload_request.as_mut().await;
-            delete_granted_case(&client, &origin, &grant).await.map_err(|detail| {
-                ReportUploadError::Failed(format!(
-                    "Upload cancellation could not confirm deletion of case {}: {detail}",
-                    grant.case_id,
-                ))
-            })?;
-            return Err(ReportUploadError::Cancelled);
+            return Err(cancelled_cleanup(&client, &origin, &grant).await);
         }
         response = upload_request.as_mut() => match response {
             Ok(response) => response,
             Err(_) if *cancel.borrow() => {
-                delete_granted_case(&client, &origin, &grant).await.map_err(|detail| {
-                    ReportUploadError::Failed(format!(
-                        "Upload cancellation could not confirm deletion of case {}: {detail}",
-                        grant.case_id,
-                    ))
-                })?;
-                return Err(ReportUploadError::Cancelled);
+                return Err(cancelled_cleanup(&client, &origin, &grant).await);
             }
             Err(error) => {
                 return Err(cleanup_granted_failure(
@@ -191,16 +215,15 @@ pub(crate) async fn perform_report_upload(
             }
         },
     };
-    let upload: Value =
-        match response_json(upload_response, "The run-report archive was rejected").await {
-            Ok(upload) => upload,
-            Err(detail) => {
-                return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
-            }
-        };
+    let upload: Value = match response_json(upload_response, "The run-report archive was rejected").await {
+        Ok(upload) => upload,
+        Err(detail) => {
+            return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
+        }
+    };
     if upload.pointer("/status").and_then(Value::as_str) != Some("uploaded")
         || upload.pointer("/caseId").and_then(Value::as_str) != Some(&grant.case_id)
-        || upload.pointer("/bytes").and_then(Value::as_u64) != Some(report.bytes)
+        || upload.pointer("/bytes").and_then(Value::as_u64) != Some(archive.len())
         || upload.pointer("/sha256").and_then(Value::as_str) != Some(&report.sha256)
     {
         return Err(cleanup_granted_failure(
@@ -211,44 +234,236 @@ pub(crate) async fn perform_report_upload(
         )
         .await);
     }
+    if *cancel.borrow() {
+        return Err(cancelled_cleanup(&client, &origin, &grant).await);
+    }
 
+    if let Err(error) = persist_grant(&grant, ReportRecoveryKind::Finalize) {
+        return Err(cleanup_granted_failure(
+            &client,
+            &origin,
+            &grant,
+            format!(
+                "Preflight could not durably record finalization recovery before asking the service to accept the case: {error}"
+            ),
+        )
+        .await);
+    }
     emit(
-        ReportUploadStateEvent::new("finalizing", id, report.bytes, report.bytes)
+        ReportUploadStateEvent::new("finalizing", id, archive.len(), archive.len())
             .with_case(grant.case_id.clone()),
     );
-    let finalize_url = validated_case_url(&origin, &grant.finalize.url, &grant.case_id, "finalize")
-        .map_err(ReportUploadError::Failed)?;
-    let finalize_response = match client
+    finalize_granted_case(&client, &origin, &grant, &identity)
+        .await
+        .map_err(|detail| ReportUploadError::RemoteOutcomeUnknown {
+            case_id: Some(grant.case_id.clone()),
+            recovery: ReportRecoveryKind::Finalize,
+            detail: format!(
+                "{detail} Preflight saved the finalize and deletion grants and will reconcile case {} before another report is created. The local ZIP is unchanged.",
+                grant.case_id
+            ),
+        })
+}
+
+#[cfg(test)]
+pub(crate) async fn perform_report_upload(
+    client: Client,
+    origin: Url,
+    archive: PathBuf,
+    report: ReportUploadInput,
+    id: u64,
+    cancel: watch::Receiver<bool>,
+    emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
+) -> Result<ReportReceipt, ReportUploadError> {
+    let snapshot = validated_report_snapshot(&report).map_err(ReportUploadError::Failed)?;
+    if snapshot.path != archive.canonicalize().map_err(|error| {
+        ReportUploadError::Failed(format!("Could not resolve the diagnostics ZIP: {error}"))
+    })? {
+        return Err(ReportUploadError::Failed(
+            "The diagnostics ZIP path changed before upload.".to_string(),
+        ));
+    }
+    let transaction_id = format!("00000000-0000-4000-8000-{id:012x}");
+    perform_report_upload_with_state(
+        client,
+        origin,
+        snapshot,
+        report,
+        &transaction_id,
+        id,
+        cancel,
+        |_grant, _recovery| Ok(()),
+        emit,
+    )
+    .await
+}
+
+pub(crate) async fn recover_pending_report(
+    client: &Client,
+    origin: &Url,
+    transaction_id: &str,
+    identity: &ReportRemoteIdentity,
+) -> ReportRecoveryOutcome {
+    match request_report_case(client, origin, transaction_id, identity).await {
+        Err(CreateCaseFailure::Rejected(_)) => ReportRecoveryOutcome::CleanupConfirmed,
+        Err(CreateCaseFailure::RemoteOutcomeUnknown(detail)) => {
+            ReportRecoveryOutcome::RemoteOutcomeUnknown {
+                case_id: None,
+                detail: format!(
+                    "Preflight still cannot reconcile the earlier report transaction: {detail}"
+                ),
+            }
+        }
+        Ok(grant) => match delete_granted_case(client, origin, &grant).await {
+            Ok(()) => ReportRecoveryOutcome::CleanupConfirmed,
+            Err(detail) => ReportRecoveryOutcome::RemoteOutcomeUnknown {
+                case_id: Some(grant.case_id.clone()),
+                detail: format!(
+                    "Preflight recovered case {} but could not confirm its deletion: {detail}",
+                    grant.case_id
+                ),
+            },
+        },
+    }
+}
+
+pub(crate) async fn recover_granted_report(
+    client: &Client,
+    origin: &Url,
+    grant: &CreateReportCaseResponse,
+    identity: &ReportRemoteIdentity,
+    recovery: ReportRecoveryKind,
+) -> ReportRecoveryOutcome {
+    if let Err(detail) = validate_case_grant_identity(origin, grant, identity) {
+        return ReportRecoveryOutcome::RemoteOutcomeUnknown {
+            case_id: Some(grant.case_id.clone()),
+            detail: format!("Saved report recovery data failed validation: {detail}"),
+        };
+    }
+    match recovery {
+        ReportRecoveryKind::CreateThenDelete | ReportRecoveryKind::Delete => {
+            match delete_granted_case(client, origin, grant).await {
+                Ok(()) => ReportRecoveryOutcome::CleanupConfirmed,
+                Err(detail) => ReportRecoveryOutcome::RemoteOutcomeUnknown {
+                    case_id: Some(grant.case_id.clone()),
+                    detail: format!(
+                        "Deletion of unresolved case {} still cannot be confirmed: {detail}",
+                        grant.case_id
+                    ),
+                },
+            }
+        }
+        ReportRecoveryKind::Finalize => {
+            match finalize_granted_case(client, origin, grant, identity).await {
+                Ok(receipt) => ReportRecoveryOutcome::Accepted(receipt),
+                Err(finalize) => match delete_granted_case(client, origin, grant).await {
+                    Ok(()) => ReportRecoveryOutcome::CleanupConfirmed,
+                    Err(cleanup) => ReportRecoveryOutcome::RemoteOutcomeUnknown {
+                        case_id: Some(grant.case_id.clone()),
+                        detail: format!(
+                            "Case {} could not be finalized ({finalize}) and deletion could not be confirmed ({cleanup}).",
+                            grant.case_id
+                        ),
+                    },
+                },
+            }
+        }
+    }
+}
+
+async fn request_report_case(
+    client: &Client,
+    origin: &Url,
+    transaction_id: &str,
+    identity: &ReportRemoteIdentity,
+) -> Result<CreateReportCaseResponse, CreateCaseFailure> {
+    if !is_case_id(transaction_id) {
+        return Err(CreateCaseFailure::Rejected(
+            "The saved report transaction identity is invalid.".to_string(),
+        ));
+    }
+    let create_url = origin.join("v1/cases").map_err(|error| {
+        CreateCaseFailure::Rejected(format!("The report intake URL is invalid: {error}"))
+    })?;
+    let response = client
+        .post(create_url)
+        .header(REPORT_TRANSACTION_HEADER, transaction_id)
+        .json(&CreateReportCaseRequest {
+            protocol_version: REPORT_PROTOCOL_VERSION,
+            product_version: &identity.product_version,
+            bytes: identity.bytes,
+            sha256: &identity.sha256,
+        })
+        .send()
+        .await
+        .map_err(|error| {
+            CreateCaseFailure::RemoteOutcomeUnknown(format!(
+                "Could not confirm case creation: {}",
+                transport_detail(&error)
+            ))
+        })?;
+    let status = response.status();
+    let bytes = bounded_response_body(response).await.map_err(|detail| {
+        CreateCaseFailure::RemoteOutcomeUnknown(format!(
+            "Could not read the case-creation response: {detail}"
+        ))
+    })?;
+    if !status.is_success() {
+        return Err(CreateCaseFailure::Rejected(response_failure_bytes(
+            status,
+            &bytes,
+            "The report case was rejected",
+        )));
+    }
+    let grant: CreateReportCaseResponse = serde_json::from_slice(&bytes).map_err(|error| {
+        CreateCaseFailure::RemoteOutcomeUnknown(format!(
+            "The case-creation response was unreadable: {error}"
+        ))
+    })?;
+    validate_case_grant_identity(origin, &grant, identity)
+        .map_err(CreateCaseFailure::RemoteOutcomeUnknown)?;
+    Ok(grant)
+}
+
+async fn finalize_granted_case(
+    client: &Client,
+    origin: &Url,
+    grant: &CreateReportCaseResponse,
+    identity: &ReportRemoteIdentity,
+) -> Result<ReportReceipt, String> {
+    let finalize_url = validated_case_url(origin, &grant.finalize.url, &grant.case_id, "finalize")?;
+    let response = client
         .post(finalize_url)
         .bearer_auth(&grant.finalize.token)
         .send()
         .await
-    {
-        Ok(response) => response,
-        Err(error) => {
-            return Err(cleanup_granted_failure(
-                &client,
-                &origin,
-                &grant,
-                format!(
-                    "Could not finalize the run report: {}",
-                    transport_detail(&error)
-                ),
+        .map_err(|error| {
+            format!(
+                "Could not confirm report finalization: {}",
+                transport_detail(&error)
             )
-            .await);
-        }
-    };
-    let receipt: ReportReceipt =
-        match response_json(finalize_response, "The run report could not be finalized").await {
-            Ok(receipt) => receipt,
-            Err(detail) => {
-                return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
-            }
-        };
-    if let Err(detail) = validate_report_receipt(&origin, &receipt, &grant.case_id, &report) {
-        return Err(cleanup_granted_failure(&client, &origin, &grant, detail).await);
-    }
+        })?;
+    let receipt: ReportReceipt = response_json(response, "The run report could not be finalized").await?;
+    validate_report_receipt_identity(origin, &receipt, &grant.case_id, identity)?;
     Ok(receipt)
+}
+
+async fn cancelled_cleanup(
+    client: &Client,
+    origin: &Url,
+    grant: &CreateReportCaseResponse,
+) -> ReportUploadError {
+    match delete_granted_case(client, origin, grant).await {
+        Ok(()) => ReportUploadError::Cancelled,
+        Err(cleanup) => ReportUploadError::RemoteOutcomeUnknown {
+            case_id: Some(grant.case_id.clone()),
+            recovery: ReportRecoveryKind::Delete,
+            detail: format!(
+                "Upload cancellation could not confirm deletion of case {}: {cleanup}. Native deletion authority remains saved for recovery; the local ZIP is unchanged.",
+                grant.case_id
+            ),
+        },
+    }
 }
 
 async fn cleanup_granted_failure(
@@ -259,12 +474,16 @@ async fn cleanup_granted_failure(
 ) -> ReportUploadError {
     match delete_granted_case(client, origin, grant).await {
         Ok(()) => ReportUploadError::Failed(format!(
-            "{detail} The incomplete server case was deleted; the local ZIP is unchanged."
+            "{detail} Remote cleanup was confirmed; the local ZIP is unchanged."
         )),
-        Err(cleanup) => ReportUploadError::Failed(format!(
-            "{detail} Deletion of case {} could not be confirmed: {cleanup}",
-            grant.case_id
-        )),
+        Err(cleanup) => ReportUploadError::RemoteOutcomeUnknown {
+            case_id: Some(grant.case_id.clone()),
+            recovery: ReportRecoveryKind::Delete,
+            detail: format!(
+                "{detail} Deletion of case {} could not be confirmed: {cleanup}. Native deletion authority remains saved for recovery; the local ZIP is unchanged.",
+                grant.case_id
+            ),
+        },
     }
 }
 
@@ -286,7 +505,7 @@ async fn delete_granted_case(
             )
         })?;
     if response.status() != StatusCode::NO_CONTENT {
-        return Err(response_failure(response, "the cancellation cleanup was rejected").await);
+        return Err(response_failure(response, "the report cleanup was rejected").await);
     }
     Ok(())
 }
@@ -320,13 +539,6 @@ pub(crate) fn validate_report_origin(configured: Option<&str>) -> Result<Url, St
     Ok(origin)
 }
 
-/// Renders a transport error together with everything underneath it.
-///
-/// `reqwest::Error` prints only its own layer, so a failure to reach the intake reads as
-/// "error sending request for url (...)" and names neither the reason nor the operating system's
-/// answer. The cause is always one or two `source()` hops down -- a refused connection, a DNS
-/// failure, a closed stream -- and without it a report that will not send is indistinguishable from
-/// one that was refused, both for a player asking why and for a failing test.
 pub(crate) fn transport_detail(error: &reqwest::Error) -> String {
     let mut detail = error.to_string();
     let mut cause: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(error);
@@ -348,7 +560,9 @@ pub(crate) fn report_client() -> Result<Client, String> {
         .map_err(|error| format!("Could not configure the report client: {error}"))
 }
 
-pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {
+pub(crate) fn validated_report_snapshot(
+    report: &ReportUploadInput,
+) -> Result<ValidatedReportSnapshot, String> {
     if report.bytes == 0 || report.bytes > REPORT_UPLOAD_LIMIT {
         return Err("The diagnostics ZIP is outside the 6 MiB upload limit.".to_string());
     }
@@ -378,44 +592,62 @@ pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<Pat
     let before = archive
         .metadata()
         .map_err(|error| format!("Could not inspect the diagnostics ZIP: {error}"))?;
-    if before.len() != report.bytes {
-        return Err("The diagnostics ZIP size changed after its disclosure.".to_string());
-    }
     let before_modified = before.modified().ok();
     let mut file = fs::File::open(&archive)
         .map_err(|error| format!("Could not open the diagnostics ZIP: {error}"))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|error| format!("Could not verify the diagnostics ZIP: {error}"))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
+    let bytes = read_bounded_snapshot(&mut file, REPORT_UPLOAD_LIMIT)
+        .map_err(|error| format!("Could not verify the diagnostics ZIP: {error}"))?;
+    if bytes.len() as u64 != report.bytes {
+        return Err("The diagnostics ZIP byte count changed after its disclosure.".to_string());
     }
     let after = archive
         .metadata()
         .map_err(|error| format!("Could not recheck the diagnostics ZIP: {error}"))?;
     if after.len() != before.len() || after.modified().ok() != before_modified {
-        return Err("The diagnostics ZIP changed while it was being verified.".to_string());
+        return Err("The diagnostics ZIP changed while it was being snapshotted.".to_string());
     }
-    let digest = hasher
-        .finalize()
+    let digest = Sha256::digest(&bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     if digest != report.sha256 {
         return Err("The diagnostics ZIP SHA-256 changed after its disclosure.".to_string());
     }
-    Ok(archive)
+    Ok(ValidatedReportSnapshot {
+        #[cfg(test)]
+        path: archive,
+        bytes: Arc::from(bytes),
+    })
 }
 
-fn validate_case_grant(
+fn read_bounded_snapshot(reader: &mut impl Read, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(max_bytes.min(64 * 1024) as usize);
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        if (bytes.len() as u64).saturating_add(read as u64) > max_bytes {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "diagnostics ZIP exceeded the 6 MiB upload limit while being read",
+            ));
+        }
+        bytes.extend_from_slice(&buffer[..read]);
+    }
+    Ok(bytes)
+}
+
+#[cfg(test)]
+pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {
+    validated_report_snapshot(report).map(|snapshot| snapshot.path)
+}
+
+fn validate_case_grant_identity(
     origin: &Url,
     grant: &CreateReportCaseResponse,
-    report: &ReportUploadInput,
+    report: &ReportRemoteIdentity,
 ) -> Result<(), String> {
     if grant.protocol_version != REPORT_PROTOCOL_VERSION || !is_case_id(&grant.case_id) {
         return Err("The intake returned an invalid case identity.".to_string());
@@ -428,7 +660,11 @@ fn validate_case_grant(
     }
     validate_grant_endpoint(origin, &grant.finalize, &grant.case_id, "POST", "finalize")?;
     validate_grant_endpoint(origin, &grant.deletion, &grant.case_id, "DELETE", "")?;
-    if report.bytes == 0 || !is_lower_sha256(&report.sha256) {
+    if report.bytes == 0
+        || report.product_version.is_empty()
+        || report.product_version.len() > 128
+        || !is_lower_sha256(&report.sha256)
+    {
         return Err("The disclosed report identity is invalid.".to_string());
     }
     Ok(())
@@ -489,11 +725,11 @@ fn validated_deletion_url(origin: &Url, value: &str) -> Result<Url, String> {
     Ok(actual)
 }
 
-pub(crate) fn validate_report_receipt(
+fn validate_report_receipt_identity(
     origin: &Url,
     receipt: &ReportReceipt,
     case_id: &str,
-    report: &ReportUploadInput,
+    report: &ReportRemoteIdentity,
 ) -> Result<(), String> {
     let Some(received_date) = receipt.received_at.get(..10) else {
         return Err("The intake returned an inconsistent signed receipt.".to_string());
@@ -509,7 +745,7 @@ pub(crate) fn validate_report_receipt(
         || receipt.object_key != format!("accepted/{case_id}.zip")
         || receipt.bytes != report.bytes
         || receipt.sha256 != report.sha256
-        || receipt.product_version != env!("CARGO_PKG_VERSION")
+        || receipt.product_version != report.product_version
         || receipt.received_at.len() < 20
         || receipt.received_at.len() > 64
         || receipt.retention_deadline.len() < 20
@@ -530,6 +766,24 @@ pub(crate) fn validate_report_receipt(
     let expected = validated_case_url(origin, &receipt.deletion.url, case_id, "")?;
     validated_deletion_url(origin, expected.as_str())?;
     Ok(())
+}
+
+pub(crate) fn validate_report_receipt(
+    origin: &Url,
+    receipt: &ReportReceipt,
+    case_id: &str,
+    report: &ReportUploadInput,
+) -> Result<(), String> {
+    validate_report_receipt_identity(
+        origin,
+        receipt,
+        case_id,
+        &ReportRemoteIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            bytes: report.bytes,
+            sha256: report.sha256.clone(),
+        },
+    )
 }
 
 fn validate_report_token(token: &str) -> Result<(), String> {
@@ -570,35 +824,29 @@ async fn response_json<T: DeserializeOwned>(
     let status = response.status();
     let bytes = bounded_response_body(response).await?;
     if !status.is_success() {
-        let detail = serde_json::from_slice::<Value>(&bytes)
-            .ok()
-            .and_then(|value| {
-                value
-                    .pointer("/error")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            });
-        return Err(detail
-            .map(|detail| format!("{context}: {detail}"))
-            .unwrap_or_else(|| format!("{context}: HTTP {status}")));
+        return Err(response_failure_bytes(status, &bytes, context));
     }
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("{context}: unreadable response: {error}"))
 }
 
+fn response_failure_bytes(status: StatusCode, bytes: &[u8], context: &str) -> String {
+    serde_json::from_slice::<Value>(bytes)
+        .ok()
+        .and_then(|value| {
+            value
+                .pointer("/error")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .map(|detail| format!("{context}: {detail}"))
+        .unwrap_or_else(|| format!("{context}: HTTP {status}"))
+}
+
 async fn response_failure(response: Response, context: &str) -> String {
     let status = response.status();
     match bounded_response_body(response).await {
-        Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
-            .ok()
-            .and_then(|value| {
-                value
-                    .pointer("/error")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            })
-            .map(|detail| format!("{context}: {detail}"))
-            .unwrap_or_else(|| format!("{context}: HTTP {status}")),
+        Ok(bytes) => response_failure_bytes(status, &bytes, context),
         Err(error) => format!("{context}: HTTP {status}; {error}"),
     }
 }
@@ -629,4 +877,164 @@ async fn bounded_response_body(response: Response) -> Result<Vec<u8>, String> {
 
 pub(crate) fn emit_report_state(app: &AppHandle, event: ReportUploadStateEvent) {
     let _ = app.emit("report-upload-state", event);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        REPORT_UPLOAD_LIMIT, cancelled_cleanup, read_bounded_snapshot, recover_granted_report,
+        validated_report_snapshot,
+    };
+    use crate::reports::{
+        CreateReportCaseResponse, ReportGrantEndpoint, ReportRecoveryKind::Delete,
+        ReportRecoveryKind::Finalize, ReportRemoteIdentity, ReportUploadError, ReportUploadInput,
+    };
+    use reqwest::Client;
+    use sha2::{Digest, Sha256};
+    use std::fs;
+    use std::io::{self, Read};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use url::Url;
+
+    struct LyingReader {
+        remaining: u64,
+    }
+
+    impl Read for LyingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            if self.remaining == 0 {
+                return Ok(0);
+            }
+            let read = self.remaining.min(buffer.len() as u64) as usize;
+            buffer[..read].fill(0x5a);
+            self.remaining -= read as u64;
+            Ok(read)
+        }
+    }
+
+    #[test]
+    fn bounded_snapshot_rejects_actual_bytes_past_six_mib() {
+        let mut reader = LyingReader {
+            remaining: REPORT_UPLOAD_LIMIT + 1,
+        };
+        let error = read_bounded_snapshot(&mut reader, REPORT_UPLOAD_LIMIT).unwrap_err();
+        assert_eq!(io::ErrorKind::InvalidData, error.kind());
+        assert!(error.to_string().contains("exceeded the 6 MiB"));
+    }
+
+    #[test]
+    fn path_changes_after_snapshot_cannot_change_upload_bytes() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let archive = std::env::temp_dir().join(format!(
+            "preflight-report-snapshot-test-{}-{unique}.zip",
+            std::process::id()
+        ));
+        let disclosed = b"exact disclosed report bytes".to_vec();
+        fs::write(&archive, &disclosed).unwrap();
+        let report = ReportUploadInput {
+            output: archive.to_string_lossy().into_owned(),
+            bytes: disclosed.len() as u64,
+            sha256: Sha256::digest(&disclosed)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        };
+        let snapshot = validated_report_snapshot(&report).unwrap();
+
+        fs::write(&archive, b"different bytes after disclosure").unwrap();
+
+        assert_eq!(&disclosed[..], &snapshot.bytes[..]);
+        assert_eq!(report.bytes, snapshot.len());
+        let digest = Sha256::digest(&snapshot.bytes[..])
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(report.sha256, digest);
+        fs::remove_file(archive).unwrap();
+    }
+    fn unreachable_grant(origin: &Url) -> CreateReportCaseResponse {
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        CreateReportCaseResponse {
+            protocol_version: 1,
+            case_id: case_id.to_string(),
+            upload: ReportGrantEndpoint {
+                method: "PUT".to_string(),
+                url: origin.join(&format!("v1/cases/{case_id}/archive")).unwrap().to_string(),
+                content_type: Some("application/zip".to_string()),
+                expires_at: Some("2026-09-07T13:00:00Z".to_string()),
+                token: "upload.signature".to_string(),
+            },
+            finalize: ReportGrantEndpoint {
+                method: "POST".to_string(),
+                url: origin.join(&format!("v1/cases/{case_id}/finalize")).unwrap().to_string(),
+                content_type: None,
+                expires_at: None,
+                token: "upload.signature".to_string(),
+            },
+            deletion: ReportGrantEndpoint {
+                method: "DELETE".to_string(),
+                url: origin.join(&format!("v1/cases/{case_id}")).unwrap().to_string(),
+                content_type: None,
+                expires_at: None,
+                token: "delete.signature".to_string(),
+            },
+        }
+    }
+
+    fn short_client() -> Client {
+        Client::builder()
+            .connect_timeout(Duration::from_millis(100))
+            .timeout(Duration::from_millis(200))
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn cancellation_without_confirmed_cleanup_is_remote_outcome_unknown() {
+        let origin = Url::parse("http://127.0.0.1:1/").unwrap();
+        let grant = unreachable_grant(&origin);
+
+        let outcome = cancelled_cleanup(&short_client(), &origin, &grant).await;
+
+        assert!(matches!(
+            outcome,
+            ReportUploadError::RemoteOutcomeUnknown {
+                case_id: Some(ref case_id),
+                recovery: Delete,
+                ..
+            } if case_id == &grant.case_id
+        ));
+    }
+
+    #[tokio::test]
+    async fn interrupted_finalization_and_failed_cleanup_remain_recoverable_unknown() {
+        let origin = Url::parse("http://127.0.0.1:1/").unwrap();
+        let grant = unreachable_grant(&origin);
+        let identity = ReportRemoteIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            bytes: 3,
+            sha256: "a".repeat(64),
+        };
+
+        let outcome = recover_granted_report(
+            &short_client(),
+            &origin,
+            &grant,
+            &identity,
+            Finalize,
+        )
+        .await;
+
+        assert!(matches!(
+            outcome,
+            super::ReportRecoveryOutcome::RemoteOutcomeUnknown {
+                case_id: Some(ref case_id),
+                ..
+            } if case_id == &grant.case_id
+        ));
+    }
+
 }

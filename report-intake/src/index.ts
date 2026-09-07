@@ -1,6 +1,6 @@
 import { DailyReportQuota } from "./daily-quota";
 import { verifyDiagnosticBundle } from "./bundle";
-import { sha256Hex, signGrant, signReceipt, verifyGrant } from "./crypto";
+import { deriveReportCaseId, sha256Hex, signGrant, signReceipt, verifyGrant } from "./crypto";
 import {
   type CreateCaseRequest,
   type GrantClaims,
@@ -18,6 +18,7 @@ type IntakeEnv = Env & {
 };
 
 const DAILY_GRANT_LIMIT_BYTES = 500 * 1024 * 1024;
+const REPORT_TRANSACTION_HEADER = "preflight-report-transaction";
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string, readonly headers: HeadersInit = {}) {
@@ -74,10 +75,19 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
   const maxUploadBytes = positiveInteger(env.MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES");
   if (body.bytes < 1 || body.bytes > maxUploadBytes) throw new HttpError(413, "archive size is outside the allowed range");
 
+  const transactionId = reportTransactionId(request);
   const now = new Date();
   const nowSeconds = Math.floor(now.getTime() / 1000);
   const quotaDay = now.toISOString().slice(0, 10);
-  const caseId = crypto.randomUUID();
+  const caseId = transactionId
+    ? await deriveReportCaseId(
+      env.REPORT_SIGNING_KEY,
+      transactionId,
+      body.productVersion,
+      body.bytes,
+      body.sha256,
+    )
+    : crypto.randomUUID();
   const objectKey = `accepted/${caseId}.zip`;
   const base = {
     v: PROTOCOL_VERSION,
@@ -310,6 +320,15 @@ function isCreateCaseRequest(value: unknown): value is CreateCaseRequest {
     && Number.isSafeInteger(body.bytes)
     && typeof body.sha256 === "string"
     && /^[0-9a-f]{64}$/.test(body.sha256);
+}
+
+function reportTransactionId(request: Request): string | null {
+  const value = request.headers.get(REPORT_TRANSACTION_HEADER);
+  if (value === null) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)) {
+    throw new HttpError(400, `invalid ${REPORT_TRANSACTION_HEADER} header`);
+  }
+  return value;
 }
 
 function requireJson(request: Request): void {

@@ -1,21 +1,25 @@
 import { describe, expect, test } from "vitest";
-import type { ReportReceipt } from "./types";
+import type { SupportReportReceipt } from "./reportLifecycleBridge";
 import { supportSafeReportReceipt } from "./supportReceipt";
 
-const RECEIPT: ReportReceipt = {
-  protocolVersion: 1,
+const RECEIPT: SupportReportReceipt & {
+  deletion?: { url: string; token: string };
+  objectKey?: string;
+  signature?: string;
+} = {
   caseId: "case-123",
-  objectKey: "accepted/case-123.zip",
   bytes: 38_165,
   sha256: "a".repeat(64),
   productVersion: "0.1.0",
   receivedAt: "2026-08-16T12:00:00Z",
   retentionDeadline: "2026-08-30T12:00:00Z",
+  // These legacy fields model stale renderer data from an older build. Copying still projects only
+  // the support-safe fields even if a caller hands the helper an object with extra properties.
   deletion: {
-    method: "DELETE",
     url: "https://reports.example.invalid/case-123",
     token: "secret-deletion-bearer",
   },
+  objectKey: "accepted/case-123.zip",
   signature: "server-integrity-field",
 };
 

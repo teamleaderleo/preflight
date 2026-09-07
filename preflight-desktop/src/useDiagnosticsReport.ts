@@ -2,20 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   cancelRunReport,
-  deleteRunReport,
   exportDiagnostics,
-  getReportIntakeStatus,
   isDesktopHost,
-  sendRunReport,
 } from "./bridge";
+import {
+  deleteReportCase,
+  getReportLifecycleStatus,
+  sendReportTransaction,
+} from "./reportLifecycleBridge";
+import type {
+  ReportIntakeStatus,
+  ReportTransactionResult,
+  ReportUploadStateEvent,
+  SupportReportReceipt,
+} from "./reportLifecycleBridge";
 import { nativeCommandError } from "./nativeErrors";
 import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
 import { supportSafeReportReceipt } from "./supportReceipt";
 import type {
   DiagnosticsExport,
-  ReportIntakeStatus,
-  ReportReceipt,
-  ReportUploadStateEvent,
   Announce,
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
@@ -24,40 +29,18 @@ import { errorMessage, localDateStamp } from "./uiFormat";
 
 export const REPORT_INTAKE_NAVIGATION_IDLE_MS = 180;
 
-function savedRunReportReceipt(): ReportReceipt | null {
-  try {
-    const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
-    if (!raw) return null;
-    const receipt = JSON.parse(raw) as Partial<ReportReceipt>;
-    const deadline = typeof receipt.retentionDeadline === "string"
-      ? Date.parse(receipt.retentionDeadline)
-      : Number.NaN;
-    const valid = receipt.protocolVersion === 1
-      && typeof receipt.caseId === "string"
-      && receipt.caseId.length > 0
-      && receipt.objectKey === `accepted/${receipt.caseId}.zip`
-      && typeof receipt.bytes === "number"
-      && Number.isSafeInteger(receipt.bytes)
-      && receipt.bytes > 0
-      && typeof receipt.sha256 === "string"
-      && /^[0-9a-f]{64}$/.test(receipt.sha256)
-      && typeof receipt.productVersion === "string"
-      && typeof receipt.receivedAt === "string"
-      && Number.isFinite(Date.parse(receipt.receivedAt))
-      && Number.isFinite(deadline)
-      && deadline > Date.now()
-      && receipt.deletion?.method === "DELETE"
-      && typeof receipt.deletion.url === "string"
-      && typeof receipt.deletion.token === "string"
-      && receipt.deletion.token.length > 0
-      && typeof receipt.signature === "string"
-      && receipt.signature.length > 0;
-    if (valid) return receipt as ReportReceipt;
-    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
-  } catch {
-    // A malformed or inaccessible local receipt never becomes a deletion request.
-  }
-  return null;
+function unavailableFromUnknown(
+  current: ReportIntakeStatus | null,
+  transaction: ReportTransactionResult,
+): ReportIntakeStatus {
+  const detail = transaction.detail
+    ?? "The remote report outcome is unknown. Preflight saved native recovery data and will reconcile it before another report is created.";
+  return {
+    configured: false,
+    origin: current?.origin ?? null,
+    reason: detail,
+    reportCase: transaction,
+  };
 }
 
 export function useDiagnosticsReport(active: boolean, announce: Announce) {
@@ -69,7 +52,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [reportFinalizing, setReportFinalizing] = useState(false);
   const [reportCancelling, setReportCancelling] = useState(false);
   const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
-  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
+  const [reportReceipt, setReportReceipt] = useState<SupportReportReceipt | null>(null);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
   const diagnosticsBusyRef = useRef(false);
@@ -77,15 +60,35 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
 
   useEffect(() => {
     try {
-      if (reportReceipt) {
-        window.localStorage.setItem(REPORT_RECEIPT_STORAGE_KEY, JSON.stringify(reportReceipt));
-      } else {
-        window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
-      }
+      // Older builds kept the complete deletion bearer here. Native private storage owns deletion
+      // authority now, so renderer storage is retired eagerly.
+      window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
     } catch {
-      // Receipt copying remains available if a locked-down webview denies local storage.
+      // A locked-down webview can deny storage; native case recovery remains authoritative.
     }
-  }, [reportReceipt]);
+  }, []);
+
+  const applyTransaction = (transaction: ReportTransactionResult, source: "command" | "status" | "event") => {
+    if (transaction.state === "accepted" && transaction.receipt) {
+      setReportReceipt(transaction.receipt);
+      setReportReview(false);
+      setReportError("");
+      if (source !== "status") announce(`Support file sent. Case ${transaction.receipt.caseId}.`, "success");
+      return;
+    }
+    if (transaction.state === "cleanup-confirmed") {
+      const detail = transaction.detail ?? "Remote cleanup was confirmed. The support file on this computer is unchanged.";
+      setReportError(detail);
+      if (source !== "status") announce(detail, "warning");
+      return;
+    }
+    const detail = transaction.detail
+      ?? "The remote report outcome is unknown. Preflight saved native recovery data and will reconcile it before another report is created.";
+    setReportReview(false);
+    setReportError("");
+    setReportIntake((current) => unavailableFromUnknown(current, transaction));
+    if (source !== "status") announce(detail, "warning");
+  };
 
   useEffect(() => {
     if (!active || reportIntake !== null) return;
@@ -93,13 +96,20 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     // Opening Help or Settings is navigation, not a request to contact the report service. Let the
     // retained page paint first, then fill this optional status in once and keep it for the session.
     const timer = window.setTimeout(() => {
-      void getReportIntakeStatus()
+      void getReportLifecycleStatus()
         .then((status) => {
-          if (!cancelled) setReportIntake(status);
+          if (cancelled) return;
+          setReportIntake(status);
+          if (status.reportCase) applyTransaction(status.reportCase, "status");
         })
         .catch((error) => {
           if (!cancelled) {
-            setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
+            setReportIntake({
+              configured: false,
+              origin: null,
+              reason: errorMessage(error),
+              reportCase: null,
+            });
           }
         });
     }, REPORT_INTAKE_NAVIGATION_IDLE_MS);
@@ -128,18 +138,30 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         announce(payload.detail ?? "Stopping the report upload…");
         return;
       }
-      if (payload.state === "cancelled" || payload.state === "failed") {
+      if (payload.state === "cleanup-confirmed") {
         reportUploadingRef.current = false;
         setReportUploading(false);
         setReportFinalizing(false);
         setReportCancelling(false);
-        if (payload.state === "failed") {
-          const detail = payload.detail ?? "The report could not be sent.";
-          setReportError(detail);
-          announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
-          return;
-        }
-        announce(payload.detail ?? "The support file on this computer is unchanged.", "warning");
+        applyTransaction({
+          state: "cleanup-confirmed",
+          caseId: payload.caseId,
+          receipt: null,
+          detail: payload.detail,
+        }, "event");
+        return;
+      }
+      if (payload.state === "remote-outcome-unknown") {
+        reportUploadingRef.current = false;
+        setReportUploading(false);
+        setReportFinalizing(false);
+        setReportCancelling(false);
+        applyTransaction({
+          state: "remote-outcome-unknown",
+          caseId: payload.caseId,
+          receipt: null,
+          detail: payload.detail,
+        }, "event");
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
@@ -151,7 +173,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportReceipt(payload.receipt);
       }
     }, (error) => {
-      announce(`Preflight lost the live upload status: ${error}. Checking it again…`, "warning");
+      announce(`Preflight lost the live upload status: ${error}. Checking native report recovery…`, "warning");
       let previousUpload: number | null | undefined;
       stopReconciliation();
       stopReconciliation = startOperationReconciliation({
@@ -168,9 +190,16 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
             setReportUploading(false);
             setReportFinalizing(false);
             setReportCancelling(false);
-            const detail = "Preflight couldn’t confirm whether the upload finished. The ZIP is still on this computer. Check Help before retrying.";
-            setReportError(detail);
-            announce(detail, "warning");
+            void getReportLifecycleStatus()
+              .then((status) => {
+                setReportIntake(status);
+                if (status.reportCase) applyTransaction(status.reportCase, "status");
+              })
+              .catch((statusError) => {
+                const detail = `Preflight could not reconcile the completed upload operation: ${errorMessage(statusError)}`;
+                setReportIntake({ configured: false, origin: null, reason: detail, reportCase: null });
+                announce(detail, "warning");
+              });
           } else {
             previousUpload = null;
           }
@@ -224,20 +253,14 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     setReportError("");
     announce("Starting upload…");
     try {
-      const receipt = await sendRunReport(diagnosticsExport);
-      setReportReceipt(receipt);
-      setReportReview(false);
-      setReportUploadedBytes(diagnosticsExport.bytes);
-      announce(`Support file sent. Case ${receipt.caseId}.`, "success");
+      const transaction = await sendReportTransaction(diagnosticsExport);
+      if (transaction.state === "accepted") setReportUploadedBytes(diagnosticsExport.bytes);
+      applyTransaction(transaction, "command");
     } catch (error) {
       const nativeError = nativeCommandError(error);
       const detail = nativeError?.message ?? errorMessage(error);
-      if (nativeError?.code === "report-upload-cancelled") {
-        announce("Upload stopped. The support file is still on this computer.", "warning");
-      } else {
-        setReportError(detail);
-        announce(`Report wasn’t sent. The support file is still on this computer. ${detail}`, "error");
-      }
+      setReportError(detail);
+      announce(`Preflight could not start or reconcile the report transaction. ${detail}`, "error");
     } finally {
       reportUploadingRef.current = false;
       setReportUploading(false);
@@ -268,7 +291,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     if (!reportReceipt) return;
     try {
       await navigator.clipboard.writeText(JSON.stringify(supportSafeReportReceipt(reportReceipt), null, 2));
-      announce("Case details copied. Deletion access stayed on this computer.");
+      announce("Case details copied. Deletion access stayed in native private storage.");
     } catch (error) {
       announce(`Could not copy the case details: ${errorMessage(error)}`, "error");
     }
@@ -276,7 +299,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
 
   const dismissRunReportReceipt = () => {
     setReportReceipt(null);
-    announce("Case dismissed. This computer can no longer delete the upload.");
+    announce("Case hidden. Native deletion access stays saved on this computer.");
   };
 
   const clearReportReceipt = () => {
@@ -287,9 +310,12 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     if (!reportReceipt || reportDeleting) return;
     setReportDeleting(true);
     try {
-      await deleteRunReport(reportReceipt.deletion);
+      await deleteReportCase(reportReceipt.caseId);
       const caseId = reportReceipt.caseId;
       setReportReceipt(null);
+      setReportIntake((current) => current
+        ? { ...current, configured: true, reason: null, reportCase: null }
+        : current);
       announce(`Uploaded file ${caseId} was deleted. The support file on this computer is unchanged.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
