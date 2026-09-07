@@ -38,12 +38,18 @@ impl ValidatedReportSnapshot {
 
 #[derive(Debug)]
 pub(crate) enum ReportRecoveryOutcome {
-    Accepted(ReportReceipt),
+    Accepted(Box<ReportReceipt>),
     CleanupConfirmed,
     RemoteOutcomeUnknown {
         case_id: Option<String>,
         detail: String,
     },
+}
+
+pub(crate) struct ReportUploadAttempt<'a> {
+    pub(crate) transaction_id: &'a str,
+    pub(crate) id: u64,
+    pub(crate) cancel: watch::Receiver<bool>,
 }
 
 #[derive(Debug)]
@@ -84,12 +90,15 @@ pub(crate) async fn perform_report_upload_with_state(
     origin: Url,
     archive: ValidatedReportSnapshot,
     report: ReportUploadInput,
-    transaction_id: &str,
-    id: u64,
-    mut cancel: watch::Receiver<bool>,
+    attempt: ReportUploadAttempt<'_>,
     persist_grant: impl Fn(&CreateReportCaseResponse, ReportRecoveryKind) -> Result<(), String>,
     emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
 ) -> Result<ReportReceipt, ReportUploadError> {
+    let ReportUploadAttempt {
+        transaction_id,
+        id,
+        mut cancel,
+    } = attempt;
     if archive.len() != report.bytes {
         return Err(ReportUploadError::Failed(
             "The immutable diagnostics snapshot no longer matches its disclosed byte count."
@@ -293,9 +302,11 @@ pub(crate) async fn perform_report_upload(
         origin,
         snapshot,
         report,
-        &transaction_id,
-        id,
-        cancel,
+        ReportUploadAttempt {
+            transaction_id: &transaction_id,
+            id,
+            cancel,
+        },
         |_grant, _recovery| Ok(()),
         emit,
     )
@@ -359,7 +370,7 @@ pub(crate) async fn recover_granted_report(
         }
         ReportRecoveryKind::Finalize => {
             match finalize_granted_case(client, origin, grant, identity).await {
-                Ok(receipt) => ReportRecoveryOutcome::Accepted(receipt),
+                Ok(receipt) => ReportRecoveryOutcome::Accepted(Box::new(receipt)),
                 Err(finalize) => match delete_granted_case(client, origin, grant).await {
                     Ok(()) => ReportRecoveryOutcome::CleanupConfirmed,
                     Err(cleanup) => ReportRecoveryOutcome::RemoteOutcomeUnknown {
@@ -774,6 +785,7 @@ fn validate_report_receipt_identity(
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn validate_report_receipt(
     origin: &Url,
     receipt: &ReportReceipt,

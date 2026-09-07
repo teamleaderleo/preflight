@@ -1,16 +1,13 @@
-#[path = "bound_directory.rs"]
-mod bound_directory;
-
+use crate::bound_directory::BoundDirectory;
 use crate::operations::{
     OperationCoordinator, ReportUploadProcess, refuse_benchmark_for_report, refuse_update_install,
 };
 use crate::report_transport::{
-    ReportRecoveryOutcome, configured_report_origin, emit_report_state, perform_report_deletion,
-    perform_report_upload_with_state, recover_granted_report, recover_pending_report,
-    report_client, validated_report_snapshot,
+    ReportRecoveryOutcome, ReportUploadAttempt, configured_report_origin, emit_report_state,
+    perform_report_deletion, perform_report_upload_with_state, recover_granted_report,
+    recover_pending_report, report_client, validated_report_snapshot,
 };
 use crate::take_deferred_exit;
-use bound_directory::BoundDirectory;
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -270,6 +267,8 @@ pub(crate) enum ReportUploadError {
     Failed(String),
     RemoteOutcomeUnknown {
         case_id: Option<String>,
+        // Transport tests assert the recovery phase; durable authority is persisted separately.
+        #[allow(dead_code)]
         recovery: ReportRecoveryKind,
         detail: String,
     },
@@ -567,6 +566,7 @@ async fn recover_stored_case(
                 Ok(None)
             }
             ReportRecoveryOutcome::Accepted(receipt) => {
+                let receipt = *receipt;
                 let accepted = StoredReportState::Accepted {
                     transaction_id,
                     receipt: receipt.clone(),
@@ -589,6 +589,7 @@ async fn recover_stored_case(
                 Ok(None)
             }
             ReportRecoveryOutcome::Accepted(receipt) => {
+                let receipt = *receipt;
                 let accepted = StoredReportState::Accepted {
                     transaction_id,
                     receipt: receipt.clone(),
@@ -785,9 +786,11 @@ pub(crate) async fn send_run_report(
         origin,
         archive,
         report.clone(),
-        &transaction_id,
-        id,
-        cancel_receiver,
+        ReportUploadAttempt {
+            transaction_id: &transaction_id,
+            id,
+            cancel: cancel_receiver,
+        },
         |grant, recovery| {
             store.publish(&StoredReportState::Granted {
                 transaction_id: transaction_for_grant.clone(),
