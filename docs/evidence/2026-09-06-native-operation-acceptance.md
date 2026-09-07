@@ -85,7 +85,7 @@ capability source lock still contained the previous engine source digest. The di
 the single digest updated with the repository's capability-review command. The failure log remains
 at `benchmark-results/windows-path-contract-failure.log`.
 
-## Corrected packages installed; native continuation blocked
+## Corrected packages installed; initial native continuation blocked
 
 PR #1273 merged as `03c1e581ccd6193c865f2ddd4b10336cbf90e878`. Desktop CI
 [34067557024](https://github.com/teamleaderleo/preflight/actions/runs/34067557024) passed all three
@@ -127,6 +127,75 @@ At the pause, all owned test game/GUI, Moonlight and keep-awake processes were c
 shut down through the guest agent and verified `shut off`. The shared GPU was rebound to `i915`, GDM
 started, and SSH verified. Persistent boot configuration was unchanged. Native RDP interaction after
 this final handback remains pending the Mac unlock; service state is not a screenshot/interaction claim.
+
+## Corrected Windows native acceptance after unlock
+
+The continuation used corrected Distribution `34068259606` above, with installed hashes checked
+again and clean canonical Mac/Linux checkouts at `28b1b7a45134dfda65c4419c81622c7cdcecd29c`.
+Actual windowed Moonlight interaction selected `C:\Games\Starsector` in the native folder picker
+and reached Ready. The previous verbatim-path failure is resolved on these installed bytes.
+
+Home Options enumerated `3072 × 1920 (Display)`. Native controls changed the game to 1600×900,
+windowed, sound off, 3 GiB heap and 105% UI size; antialiasing stayed off and battle size stayed 400.
+The confirmation checkbox and Apply completed. Closing the GUI and reopening its desktop shortcut
+retained every value, independently corroborated by packaged-engine readback. Maximizing and
+restoring the native window kept the settings and launch controls within the window.
+
+Prepare and launch completed and opened the game directly. The real menu and settled settings
+panel rendered with moving background ships. A screenshot taken during the settings fade is retained
+separately from the settled panel. An attempted preparation-navigation check coincided with game
+launch and is not claimed as a successful navigation observation.
+
+Closing Preflight left wrapper PID 3012 and game PID 4208 alive. Reopening the desktop shortcut
+recovered Running. Clicking Stop followed immediately by Settings navigation displayed Settings
+while shutdown completed. Run `20260907-004504-942-b8c3e0f8` recorded `USER_STOPPED`, effective
+exit code 0, original launcher exit code 1, `controllerStopRequested: true`, and no fatal evidence.
+Its `user-stop.requested` matches game PID 4208 and process start `2026-09-07T00:45:05.052Z`.
+The durable launch ledger retains **209320 ms** for that session. The original failed classification
+from #1263 remains intact.
+
+This installation still used the existing Fast Rendering-owned `fr.bat` and `fr.vmparams`, with all
+83 mods unchanged. The single correctness observation measured 32.6168688 s from
+`processStartedAt` to `mainMenuInteractiveAt`; the later overlay removal was a separate event.
+This is not a randomized campaign or an acceleration comparison.
+
+After closing game and GUI, packaged-engine restoration returned settings, preferences and memory
+readback exactly to the saved originals: 1024×720, windowed, sound on, 4 GiB, 100% UI size.
+The enabled-mods SHA-256 still matched the shared 83-mod hash above. Evidence is retained under
+`benchmark-results/gui-audit-operation-reliability/windows/`, including `corrected-picker.png`,
+`corrected-ready.png`, `resolutions.png`, `reopened-options.png`, `maximized.png`,
+`game-settings-settled.png`, `recovered-running.png`, `stop-navigation.png`, the run directory,
+`corrected-launches.jsonl`, and applied/final settings JSON.
+
+The corrected Mac package also received a new native smoke check after unlock: Ready, Options
+interaction and original settings readback at 1040×701 (1440×932 windowed, sound on, 6 GiB, 100%).
+Screenshots `mac/corrected-ready.png` and `mac/corrected-readback.png` retain this check. The GUI
+was closed afterward. This supplements the earlier full Mac game exercise; no game was rerun.
+
+The corrected Linux native host hash was also checked again. After Windows shut down, the runtime
+handover restored `i915` and active GDM. The first saved RDP connection showed a black frame;
+the connector's diagnosis reported `transport_failure`, and GNOME Remote Desktop logged
+`ERRCONNECT_CONNECT_TRANSPORT_FAILED`. Restarting the existing user remote-desktop service and
+reconnecting restored the visible desktop. An intervening client launch failed with macOS error
+`-600`; a subsequent connector invocation returned `rdp_session=ready`.
+
+The existing login-keyring prompt was dismissed with Escape without accessing credentials. A
+temporary GNOME "Preflight is not responding" dialog cleared after choosing Wait. The GUI then
+responded to keyboard navigation. Synthetic mouse and modifier attempts in this RDP session did
+not consistently reach the intended controls, so the final Help → Game settings action used the
+installed application's native AT-SPI `press` action. The resulting native page, captured through
+RDP in `linux/corrected-native-readback.png`, shows 2048×1280 fullscreen, sound off, antialiasing
+off, 100% UI size, battle size 400 and 2 GiB. No Linux settings changed and no game was launched.
+The failed black frames, dialog, and ineffective input attempts remain alongside the successful
+capture; their causes are not asserted to be a Preflight regression or a clean native pass.
+
+This Linux smoke used a transient user service solely for rendering/readback, then stopped it.
+The earlier full Linux launch/recovery exercise above used the normal application scope. At final
+cleanup, the Windows VM was shut off, `i915` owned the shared GPU, GDM was active, SSH and native
+RDP had been verified, and the Linux mod hash still matched. Owned game/GUI and stream processes
+were closed; the temporary Mac activity assertion had expired. Persistent boot configuration and
+credentials were unchanged. The superseded 73 MB Mac app backup was removed after corrected
+native verification; authenticated package files and failed/successful evidence were retained.
 
 ## Other retained limits
 
