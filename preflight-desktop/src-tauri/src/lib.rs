@@ -4,7 +4,10 @@ use std::process::{Child, Stdio};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+// Also compiled directly by tests/bound_directory.rs, which exercises helper-only APIs.
 mod automation;
+#[allow(dead_code)]
+mod bound_directory;
 // Kept for the separate, opt-in campaign automation harness. The product startup benchmark never
 // constructs this bridge or requests desktop input permissions.
 #[allow(dead_code, unused_imports)]

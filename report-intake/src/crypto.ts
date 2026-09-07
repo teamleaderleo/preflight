@@ -30,9 +30,32 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
   );
 }
 
+async function hmac(secret: string, value: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret), encoder.encode(value)));
+}
+
 async function signature(secret: string, value: string): Promise<string> {
-  const bytes = await crypto.subtle.sign("HMAC", await hmacKey(secret), encoder.encode(value));
-  return base64url(new Uint8Array(bytes));
+  return base64url(await hmac(secret, value));
+}
+
+export async function deriveReportCaseId(
+  secret: string,
+  transactionId: string,
+  productVersion: string,
+  bytes: number,
+  sha256: string,
+): Promise<string> {
+  const digest = await hmac(
+    secret,
+    JSON.stringify(["preflight-report-case-v1", transactionId, productVersion, bytes, sha256]),
+  );
+  const id = digest.slice(0, 16);
+  // RFC 9562 UUIDv8 marks this as an application-defined, keyed deterministic identifier while
+  // retaining the case-id syntax already used by the intake contract.
+  id[6] = (id[6] & 0x0f) | 0x80;
+  id[8] = (id[8] & 0x3f) | 0x80;
+  const hex = Array.from(id, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export async function signGrant(secret: string, claims: GrantClaims): Promise<string> {

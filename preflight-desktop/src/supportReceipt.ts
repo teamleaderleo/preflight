@@ -1,4 +1,4 @@
-import type { ReportReceipt } from "./types";
+import type { SupportReportReceipt } from "./reportLifecycleBridge";
 
 export interface SupportSafeReportReceipt {
   caseId: string;
@@ -9,7 +9,7 @@ export interface SupportSafeReportReceipt {
   retentionDeadline: string;
 }
 
-export function supportSafeReportReceipt(receipt: ReportReceipt): SupportSafeReportReceipt {
+export function supportSafeReportReceipt(receipt: SupportReportReceipt): SupportSafeReportReceipt {
   return {
     caseId: receipt.caseId,
     bytes: receipt.bytes,
