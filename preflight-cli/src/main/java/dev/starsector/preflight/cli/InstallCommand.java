@@ -182,7 +182,8 @@ final class InstallCommand {
                 + " \"$@\"\n";
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
-                + "Name=Preflight\n"
+                + "Name=Starsector (Preflight)\n"
+                + "Comment=Launch Starsector with Preflight optimizations\n"
                 + "Exec=" + desktopExecArgument(launcher.toString()) + "\n"
                 + IntegrationOwnership.DESKTOP_MARKER + "\n"
                 + "Terminal=false\n"
