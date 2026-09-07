@@ -216,6 +216,31 @@ class InstallCommandTest {
     }
 
     @Test
+    void reinstallNamesOwnedLinuxGameShortcutWithoutChangingItsLaunchCommand(@TempDir Path tempDir)
+            throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.LINUX, tempDir.resolve("home"), Map.of());
+        Path jar = tempDir.resolve("preflight.jar");
+        Path game = tempDir.resolve("Starsector");
+        assertEquals(0, InstallCommand.installLinux(home, jar, game));
+        Path desktop = home.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
+        Path command = home.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        byte[] originalCommand = Files.readAllBytes(command);
+        String currentEntry = Files.readString(desktop);
+        assertTrue(currentEntry.contains("Name=Starsector (Preflight)\n"));
+        assertTrue(currentEntry.contains("Comment=Launch Starsector with Preflight optimizations\n"));
+        String oldEntry = currentEntry.replace("Name=Starsector (Preflight)\n", "Name=Preflight\n")
+                .replace("Comment=Launch Starsector with Preflight optimizations\n", "");
+        Files.writeString(desktop, oldEntry);
+        assertTrue(home.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
+
+        assertEquals(0, InstallCommand.installLinux(home, jar, game));
+
+        assertEquals(currentEntry, Files.readString(desktop));
+        assertArrayEquals(originalCommand, Files.readAllBytes(command));
+        assertTrue(home.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
+    }
+
+    @Test
     void refusesGenericLaunchersThatOnlyMentionPreflightOrStarsector(@TempDir Path tempDir)
             throws Exception {
         Path home = tempDir.resolve("home");
