@@ -519,7 +519,7 @@ final class AdapterTransformationRegistry {
         return null;
     }
 
-    /** Applies every independent WeaponSpecLoader rewrite to one tree and computes frames once. */
+    /** Applies WeaponSpecLoader rewrites while preserving the original game stack-map hierarchy. */
     private static byte[] weaponLoaderPlans(ClassSignature signature, byte[] originalBytes) {
         if (!WeaponLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
             return null;

@@ -68,7 +68,7 @@ class ProjectileJsonCachePlanTest {
         assertEquals(0, com.fs.starfarer.loading.LoadingUtils.calls());
     }
 
-    private static byte[] fixture(int jsonCalls) {
+    static byte[] fixture(int jsonCalls) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, WeaponLoaderPhasePlan.TARGET_CLASS,
                 null, "java/lang/Object", null);
