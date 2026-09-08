@@ -127,7 +127,17 @@ export function BenchmarkPage({
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">
             <div><p className="eyebrow">Latest comparison</p><h2>Optimizations off → on</h2></div>
-            <CheckIcon className="settings-check" />
+            {benchmarkMetric ? (
+              <button
+                className="icon-button icon-button--small"
+                type="button"
+                aria-label={benchmarkCopied ? "Benchmark result copied" : "Copy benchmark result"}
+                title={benchmarkCopied ? "Benchmark result copied" : "Copy measured startup times and installation qualifier"}
+                onClick={() => void copyBenchmarkResult()}
+              >
+                {benchmarkCopied ? <CheckIcon /> : <CopyIcon />}
+              </button>
+            ) : <CheckIcon className="settings-check" />}
           </div>
           <div className="benchmark-results__grid benchmark-results__grid--startup">
             <BenchmarkResult label="Main menu" metric={benchmarkMetric} unit="time" />
@@ -147,24 +157,11 @@ export function BenchmarkPage({
             </>
           ) : null}
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
-          {benchmarkMetric ? (
-            <div className="benchmark-card__actions">
-              <button
-                className="icon-button icon-button--small"
-                type="button"
-                aria-label={benchmarkCopied ? "Benchmark result copied" : "Copy benchmark result"}
-                title={benchmarkCopied ? "Benchmark result copied" : "Copy measured startup times and installation qualifier"}
-                onClick={() => void copyBenchmarkResult()}
-              >
-                {benchmarkCopied ? <CheckIcon /> : <CopyIcon />}
-              </button>
-              {benchmarkCopyState === "copied"
-                ? <small aria-live="polite">Benchmark result copied.</small>
-                : benchmarkCopyState === "error"
-                  ? <small aria-live="polite">Couldn’t copy the benchmark result.</small>
-                  : null}
-            </div>
-          ) : null}
+          {benchmarkCopyState === "copied"
+            ? <small aria-live="polite">Benchmark result copied.</small>
+            : benchmarkCopyState === "error"
+              ? <small aria-live="polite">Couldn’t copy the benchmark result.</small>
+              : null}
           <small>The saved result includes the game and mod versions plus raw timings.</small>
         </section>
       ) : null}
