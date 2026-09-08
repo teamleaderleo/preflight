@@ -972,7 +972,11 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
+        // macOS's unresolved temp_dir() crosses the /var -> /private/var symlink; BoundDirectory's
+        // anchor walk intentionally opens every component with O_NOFOLLOW, so it fails closed on
+        // that symlink unless the base is canonicalized first (matches lib.rs's diagnostics test).
+        let base = std::env::temp_dir().canonicalize().unwrap();
+        let root = base.join(format!(
             "preflight-report-store-{label}-{}-{unique}",
             std::process::id()
         ));
