@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/teamleaderleo/preflight/security/advisories/new
+    about: Report a vulnerability privately instead of describing it in a public issue.
+  - name: Getting started guide
+    url: https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md
+    about: The install and first-launch walkthrough, plus what to try when something goes wrong.
