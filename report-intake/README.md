@@ -93,11 +93,11 @@ review.
 ### Current production state
 
 The private bucket, lifecycle rule, signing secret, rate-limit bindings, SQLite Durable Object, and
-Worker are provisioned on Cloudflare's free plans. Live canary case
-`2555abea-efda-4cd0-be94-fe23d95e18cd` passed against Worker version
-`5a9c4e0d-d740-4271-af65-f5b98da850d9` on 2026-08-08 and was deleted; the bucket then reported zero
-objects and zero bytes. The desktop application still omits the compile-time intake origin until a
-packaged release candidate passes the same lifecycle through its UI.
+Worker are provisioned on Cloudflare's free plans. Worker version
+`5752d7c6-e927-4c8a-85f3-fc5a8ef7f99e` was deployed on 2026-09-08. Synthetic case
+`d051562a-474b-833e-bb70-f30164d032cf` passed keyed create replay, upload/finalize,
+and verified deletion. See the [deployment evidence](../docs/evidence/2026-09-08-report-service-deployment.md).
+This service check does not replace the packaged release candidate's UI lifecycle gate.
 
 ### Early-beta capacity and cost
 
