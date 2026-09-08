@@ -15,8 +15,10 @@ import "./hangar-targets.css";
 import "./hangar-focus-contrast.css";
 import "./speedPage.css";
 import { initializeHomePresentation } from "./useHomePresentation";
+import { installWebviewChrome } from "./webviewChrome";
 
 initializeHomePresentation();
+installWebviewChrome();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
