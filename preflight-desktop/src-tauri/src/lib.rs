@@ -689,6 +689,23 @@ fn reveal_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
+/// The main window is configured hidden so the first frame a player sees is the styled page rather
+/// than the engine's blank white canvas. It is shown once the page has loaded (`theme-init.js` has
+/// settled the appearance by then), or after this grace if the load never reports back, so a
+/// broken page cannot leave the app running invisibly.
+const FIRST_PAINT_REVEAL_FALLBACK: std::time::Duration = std::time::Duration::from_millis(2_500);
+
+fn show_main_window_if_hidden(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if window.is_visible().unwrap_or(false) {
+        return;
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 /// `focus_requests` carries one message per later launch that deferred to this process; each one
 /// reveals the main window. The forwarding thread ends when the sender side is dropped.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -698,6 +715,13 @@ pub fn run(focus_requests: std::sync::mpsc::Receiver<()>) {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(OperationCoordinator::default())
         .manage(UpdateTracker(Mutex::new(None)))
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Finished
+            {
+                show_main_window_if_hidden(webview.app_handle());
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             std::thread::Builder::new()
@@ -707,6 +731,14 @@ pub fn run(focus_requests: std::sync::mpsc::Receiver<()>) {
                         let reveal = handle.clone();
                         let _ = handle.run_on_main_thread(move || reveal_main_window(&reveal));
                     }
+                })?;
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("first-paint-fallback".to_string())
+                .spawn(move || {
+                    std::thread::sleep(FIRST_PAINT_REVEAL_FALLBACK);
+                    let reveal = handle.clone();
+                    let _ = handle.run_on_main_thread(move || show_main_window_if_hidden(&reveal));
                 })?;
             if std::env::var_os("PREFLIGHT_DESKTOP_AUTOMATION_PROBE_SMOKE").as_deref()
                 == Some(std::ffi::OsStr::new("1"))
