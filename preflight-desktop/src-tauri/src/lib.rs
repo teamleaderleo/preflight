@@ -488,6 +488,12 @@ fn watch_child(app: AppHandle, mut child: Child, after_launch_behavior: AfterLau
                 detail,
             },
         );
+        // Minimize means "out of the way while the game runs". Bring the window back so the run
+        // report, or a failed-run recovery card, is not left behind in a minimized window.
+        if after_launch_behavior == AfterLaunchBehavior::Minimize {
+            let reveal = app.clone();
+            let _ = app.run_on_main_thread(move || reveal_main_window(&reveal));
+        }
     });
 }
 
@@ -672,14 +678,36 @@ pub(crate) fn child_error(context: &str, stderr: &[u8]) -> String {
     }
 }
 
+/// Bring the main window back in front of whatever hid it: a minimized after-launch window, another
+/// application, or a second Preflight launch that handed off instead of starting.
+fn reveal_main_window(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+}
+
+/// `focus_requests` carries one message per later launch that deferred to this process; each one
+/// reveals the main window. The forwarding thread ends when the sender side is dropped.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run(focus_requests: std::sync::mpsc::Receiver<()>) {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(OperationCoordinator::default())
         .manage(UpdateTracker(Mutex::new(None)))
-        .setup(|app| {
+        .setup(move |app| {
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("focus-requests".to_string())
+                .spawn(move || {
+                    for () in focus_requests {
+                        let reveal = handle.clone();
+                        let _ = handle.run_on_main_thread(move || reveal_main_window(&reveal));
+                    }
+                })?;
             if std::env::var_os("PREFLIGHT_DESKTOP_AUTOMATION_PROBE_SMOKE").as_deref()
                 == Some(std::ffi::OsStr::new("1"))
             {
