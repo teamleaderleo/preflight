@@ -1507,14 +1507,15 @@ fn diagnostic_export_arguments(destination: &Path) -> Vec<OsString> {
     ]
 }
 
+/// Keeps a spawned console program from opening its own window over the app (`CREATE_NO_WINDOW`).
 #[cfg(windows)]
-fn configure_child_process(command: &mut Command) {
+pub(crate) fn configure_child_process(command: &mut Command) {
     use std::os::windows::process::CommandExt;
     command.creation_flags(0x0800_0000);
 }
 
 #[cfg(not(windows))]
-fn configure_child_process(_command: &mut Command) {}
+pub(crate) fn configure_child_process(_command: &mut Command) {}
 
 #[cfg(all(test, windows))]
 mod windows_bundled_engine_tests {

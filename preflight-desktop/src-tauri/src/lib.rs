@@ -133,6 +133,9 @@ fn open_project_link(link: String) -> Result<(), String> {
         // `start` is a shell builtin, and its first quoted argument is taken as the window title.
         let mut command = std::process::Command::new("cmd");
         command.args(["/C", "start", "", url]);
+        // A GUI process spawning cmd.exe otherwise opens a console window for the shell's
+        // lifetime, which flashes over the app every time a link is opened.
+        engine::configure_child_process(&mut command);
         command
     } else {
         let mut command = std::process::Command::new("xdg-open");
