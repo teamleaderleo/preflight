@@ -1,4 +1,5 @@
 # Privacy
+<!-- This page ships inside the desktop package as legal/PRIVACY.md, so links stay absolute. -->
 
 Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, diagnostics,
 and benchmarking don't send their contents to the project maintainer. Packaged desktop builds can
@@ -56,7 +57,7 @@ the current user home are replaced with `<home>`.
 It excludes acceleration caches, Starsector and mod files, saves, logs and crash dumps, JFR
 recordings, screenshots, audio, unknown filenames, binary content, symbolic links, files above 512
 KiB, and source content above 5 MiB. The exact format is documented in
-[Diagnostics export](diagnostics.md).
+[Diagnostics export](https://github.com/teamleaderleo/preflight/blob/main/docs/diagnostics.md).
 
 ### What sending adds
 
@@ -74,12 +75,12 @@ user can request earlier deletion. The report isn't used for advertising or sold
 The intake service and desktop consent/upload/delete path are implemented and have completed a
 packaged macOS canary against the private production bucket. Public packages remain disabled until
 the final release candidate repeats that path. Its operational contract is in
-[report-intake/README.md](../report-intake/README.md).
+[report-intake/README.md](https://github.com/teamleaderleo/preflight/blob/main/report-intake/README.md).
 
 **Run-report service operator:** the Preflight project maintainer (`teamleaderleo`).
 **Contact:** [the Preflight issue tracker](https://github.com/teamleaderleo/preflight/issues). Do not
 post private diagnostics, credentials, personal data, or security exploit details in a public issue;
-use the bounded support flow and [security policy](../SECURITY.md) as applicable.
+use the bounded support flow and [security policy](https://github.com/teamleaderleo/preflight/blob/main/SECURITY.md) as applicable.
 **Privacy notice effective date:** 2026-08-13.
 
 The first beta does not send failed-run reports automatically. A support ZIP is sent only after you
