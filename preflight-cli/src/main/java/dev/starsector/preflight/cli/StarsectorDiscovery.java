@@ -153,9 +153,13 @@ final class StarsectorDiscovery {
                 inspectAppBundle(platform, root, targets);
             }
             inspectTree(platform, root, targets, diagnostics);
+            // A folder picker cannot select a bundle on macOS, so /Applications itself is the usual
+            // explicit root there. Only bundles named for the game count; otherwise any application
+            // beside it would be offered as a launcher.
             try (Stream<Path> children = Files.list(root)) {
                 children.filter(Files::isDirectory)
                         .filter(StarsectorDiscovery::isAppBundle)
+                        .filter(StarsectorDiscovery::looksLikeStarsectorBundle)
                         .forEach(app -> inspectAppBundle(platform, app, targets));
             }
         } catch (IOException error) {
@@ -201,6 +205,7 @@ final class StarsectorDiscovery {
         try (Stream<Path> entries = Files.list(macos)) {
             entries.filter(Files::isRegularFile)
                     .filter(path -> Files.isExecutable(path) || looksLikeLauncher(path))
+                    .filter(path -> !isPreflightItself(path))
                     .forEach(path -> {
                         int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
                         addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
@@ -267,6 +272,9 @@ final class StarsectorDiscovery {
     }
 
     private static boolean looksLikeLauncher(Path path) {
+        if (isPreflightItself(path)) {
+            return false;
+        }
         String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
         if (EXACT_LAUNCHER_NAMES.contains(name)) {
             return true;
@@ -290,6 +298,22 @@ final class StarsectorDiscovery {
             return "windows-executable";
         }
         return "executable";
+    }
+
+    /**
+     * Preflight's own desktop binary is {@code starsector-preflight-desktop}, which every name rule
+     * here reads as a game launcher. It ties with the real one on score and wins the lexicographic
+     * tie-break, so an installation beside the game would launch this app from itself.
+     */
+    private static boolean isPreflightItself(Path path) {
+        return path.getFileName() != null
+                && path.getFileName().toString().toLowerCase(Locale.ROOT).contains("preflight");
+    }
+
+    private static boolean looksLikeStarsectorBundle(Path app) {
+        String name = app.getFileName().toString().toLowerCase(Locale.ROOT);
+        return !name.contains("preflight")
+                && (name.contains("starsector") || name.contains("fast") || name.equals("fr.app"));
     }
 
     private static boolean isAppBundle(Path path) {

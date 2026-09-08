@@ -135,6 +135,65 @@ class StarsectorDiscoveryTest {
         assertEquals(1, result.candidates().size());
     }
 
+    /**
+     * The macOS folder picker cannot select a bundle, so /Applications is what a player hands over.
+     * Every other application in it has an executable too; only the one named for the game is a
+     * launcher, and Preflight's own bundle ({@code starsector-preflight-desktop}) is never one.
+     */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void applicationsFolderYieldsOnlyTheGameBundle() throws Exception {
+        Path applications = temporaryDirectory.resolve("Applications");
+        Path game = executableInBundle(applications.resolve("Starsector.app"), "starsector_mac.sh");
+        executableInBundle(applications.resolve("Preflight.app"), "starsector-preflight-desktop");
+        executableInBundle(applications.resolve("Safari.app"), "Safari");
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.MAC,
+                temporaryDirectory,
+                temporaryDirectory.resolve("elsewhere"),
+                Map.of(),
+                applications,
+                null);
+
+        assertNotNull(result.selected());
+        assertEquals(game.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals(1, result.candidates().size(), result.candidates().toString());
+    }
+
+    /**
+     * Installed beside the game and named starsector-preflight-desktop.exe, the desktop binary reads
+     * as a launcher, ties with starsector.exe on score, and sorts first. Preflight would launch itself.
+     */
+    @Test
+    void preflightOwnBinaryIsNeverALauncher() throws Exception {
+        Path games = temporaryDirectory.resolve("Games");
+        Path game = Files.createDirectories(games.resolve("Starsector")).resolve("starsector.exe");
+        Files.writeString(game, "stub");
+        Files.createDirectories(games.resolve("Preflight"));
+        Files.writeString(games.resolve("Preflight/starsector-preflight-desktop.exe"), "stub");
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.WINDOWS,
+                temporaryDirectory,
+                temporaryDirectory.resolve("elsewhere"),
+                Map.of(),
+                games,
+                null);
+
+        assertNotNull(result.selected());
+        assertEquals(game.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals(1, result.candidates().size(), result.candidates().toString());
+    }
+
+    private static Path executableInBundle(Path app, String name) throws Exception {
+        Path executable = app.resolve("Contents/MacOS").resolve(name);
+        Files.createDirectories(executable.getParent());
+        Files.writeString(executable, "stub");
+        executable.toFile().setExecutable(true);
+        return executable;
+    }
+
     @Test
     void explicitGameDoesNotMixWithEnvironmentDiscovery() throws Exception {
         Path explicitGame = temporaryDirectory.resolve("explicit-game");
