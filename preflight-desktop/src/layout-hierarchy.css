@@ -444,7 +444,11 @@
   max-width: min(420px, 100%);
 }
 
-@container (max-width: 1000px) {
+/* The centered launch action grows up to 748px wide before it stops widening, so the wide-screen
+ * spread of identity/ship-picker/actions below only clears it once the container is wide enough to
+ * keep the actions box's left edge past the left-pinned ship picker's right edge (748px action +
+ * 280px picker + margin). Below that width, keep this stacked-above-actions arrangement instead. */
+@container (max-width: 1360px) {
   .launch-console--layout-settled .home-flight-instrument {
     inset: -22px 0 0 !important;
   }
