@@ -6,7 +6,7 @@
 
 The product/source/UI work and the focused release-audit repairs are converged enough for the first beta. The remaining gate is about **one exact package generation**:
 
-1. deploy and canary the current report-intake service contract used by the desktop report transaction;
+1. retain the verified report-intake deployment used by the desktop report transaction;
 2. select/freeze the release source and authorize one tagged candidate;
 3. exercise that exact package with a licensed Starsector install on native Windows;
 4. exercise the same candidate on native x86-64 Linux;
@@ -22,7 +22,7 @@ That's the beta gate.
 
 - [x] **Release-audit source repairs.** The desktop engine deadline now covers output collection, Windows startup cohorts use engine-owned machine-readable readiness/effective-condition identity, and report disclosure/upload/recovery uses one immutable bounded snapshot plus native durable deletion authority and an explicit remote-outcome-unknown state.
 - [x] **Release-signing setup and private rehearsals.** The signing environment/private package machinery has been exercised. Those rehearsals prove the machinery, not final release bytes.
-- [ ] **Deploy the current report-intake transaction contract.** The desktop's create-response recovery depends on the intake honoring the keyed `preflight-report-transaction` request and returning the same case for the same transaction/report identity. Deploy and canary the current service before qualifying a package with remote sending enabled.
+- [x] **Deploy the current report-intake transaction contract.** The 2026-09-08 production deployment passed a synthetic keyed create replay, upload/finalize, and verified deletion. [Service evidence](evidence/2026-09-08-report-service-deployment.md) records source and Worker identity. The packaged player flow remains a separate gate below.
 - [ ] **Select and freeze one release source.** The maintainer separately chooses the accepted source and authorizes the immutable tagged candidate generation.
 - [ ] **Native Windows real-game acceptance.** Exercise discovery/setup, preparation, repeated launch, campaign/combat, adapter health/fallback, and removal with the frozen package.
 - [ ] **Native x86-64 Linux real-game acceptance.** Run the corresponding path with that same frozen candidate generation.
@@ -57,7 +57,7 @@ The detailed evidence lives in the linked docs/archive. At a high level:
 - hosted package jobs create/verify the reviewed Windows/macOS/Linux artifact families and their embedded engine/legal/checksum/metadata/capability material;
 - hosted package lifecycle rehearsal has covered install/upgrade/rollback/removal across the three platforms;
 - the startup benchmark can operate in package-bound candidate mode and refuses checkout fallback there;
-- the report-intake service/canary path is implemented; its current transaction-replay contract still needs production deployment before the final packaged canary;
+- the report-intake transaction-replay contract is deployed and passed its synthetic service canary; the final packaged player flow remains required;
 - current development startup uses the selected **112.17s → 13.69s** headline on the documented 83-mod development setup;
 - the historical same-profile A/B campaign remains **89.00s ordinary → 15.53s accelerated median** for the separate attribution question it measured.
 
