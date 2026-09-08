@@ -1638,6 +1638,29 @@ test("a failed report send keeps one recovery alert and the local ZIP", async ()
   expect(screen.getByRole("button", { name: "Try sending again" })).toBeEnabled();
 });
 
+test("an unknown report outcome offers a recheck instead of waiting for a restart", async () => {
+  const user = userEvent.setup();
+  window.history.replaceState(null, "", "/?scenario=report-unknown");
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
+  await user.click(await screen.findByRole("button", { name: "Review and send" }));
+  await user.click(screen.getByRole("button", { name: "Send file" }));
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Support file not sent yet");
+  expect(alert).toHaveTextContent("rate limiting this computer");
+  expect(alert).toHaveTextContent("still on this computer");
+  expect(screen.getByRole("button", { name: "Review and send" })).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: "Check again" }));
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Review and send" })).toBeEnabled());
+  expect(screen.queryByText("Support file not sent yet")).not.toBeInTheDocument();
+});
+
 test("the benchmark checks its packaged startup contract and launches without a review step", async () => {
   const user = userEvent.setup();
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe");

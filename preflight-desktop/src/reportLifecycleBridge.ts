@@ -62,6 +62,14 @@ export async function sendReportTransaction(report: DiagnosticsExport): Promise<
         detail: "The preview report service rejected the case before upload. The support file is still on this computer.",
       };
     }
+    if (browserPreviewScenario() === "report-unknown") {
+      return {
+        state: "remote-outcome-unknown",
+        caseId: null,
+        receipt: null,
+        detail: "Preflight cannot reconcile the earlier report transaction yet: the preview report service is rate limiting this computer. Check again in a minute.",
+      };
+    }
     await new Promise((resolve) => window.setTimeout(resolve, 500));
     const caseId = "ed6ca0c8-0417-45e5-864f-557680b00590";
     return {

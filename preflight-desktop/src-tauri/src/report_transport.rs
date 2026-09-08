@@ -54,7 +54,11 @@ pub(crate) struct ReportUploadAttempt<'a> {
 
 #[derive(Debug)]
 enum CreateCaseFailure {
+    /// The intake deterministically refused this identity, so no case exists for it.
     Rejected(String),
+    /// The edge rate limiter or daily capacity refused this attempt. No new case was created, but a
+    /// keyed replay learned nothing about whether an earlier attempt already created one.
+    Throttled(String),
     RemoteOutcomeUnknown(String),
 }
 
@@ -126,9 +130,11 @@ pub(crate) async fn perform_report_upload_with_state(
         }
         response = create.as_mut() => match response {
             Ok(grant) => grant,
-            Err(CreateCaseFailure::Rejected(detail)) => return Err(ReportUploadError::Failed(
-                format!("{detail} No retained report case was accepted; the local ZIP is unchanged.")
-            )),
+            Err(CreateCaseFailure::Rejected(detail) | CreateCaseFailure::Throttled(detail)) => {
+                return Err(ReportUploadError::Failed(
+                    format!("{detail} No retained report case was accepted; the local ZIP is unchanged.")
+                ));
+            }
             Err(CreateCaseFailure::RemoteOutcomeUnknown(detail)) => {
                 return Err(ReportUploadError::RemoteOutcomeUnknown {
                     case_id: None,
@@ -321,6 +327,15 @@ pub(crate) async fn recover_pending_report(
 ) -> ReportRecoveryOutcome {
     match request_report_case(client, origin, transaction_id, identity).await {
         Err(CreateCaseFailure::Rejected(_)) => ReportRecoveryOutcome::CleanupConfirmed,
+        // A throttled replay must not be mistaken for proof that no case exists: forgetting the
+        // transaction here would orphan whatever the original attempt created on the server. The
+        // next status read (Help's "Check again", or a restart) replays the same key.
+        Err(CreateCaseFailure::Throttled(detail)) => ReportRecoveryOutcome::RemoteOutcomeUnknown {
+            case_id: None,
+            detail: format!(
+                "Preflight cannot reconcile the earlier report transaction yet: {detail} Check again in a minute."
+            ),
+        },
         Err(CreateCaseFailure::RemoteOutcomeUnknown(detail)) => {
             ReportRecoveryOutcome::RemoteOutcomeUnknown {
                 case_id: None,
@@ -427,6 +442,8 @@ async fn request_report_case(
         let detail = response_failure_bytes(status, &bytes, "The report case was rejected");
         return Err(if status.is_server_error() {
             CreateCaseFailure::RemoteOutcomeUnknown(detail)
+        } else if status == StatusCode::TOO_MANY_REQUESTS {
+            CreateCaseFailure::Throttled(detail)
         } else {
             CreateCaseFailure::Rejected(detail)
         });
@@ -849,16 +866,25 @@ async fn response_json<T: DeserializeOwned>(
 }
 
 fn response_failure_bytes(status: StatusCode, bytes: &[u8], context: &str) -> String {
-    serde_json::from_slice::<Value>(bytes)
+    // Callers append their own follow-up sentence, and the intake's error strings carry no
+    // terminal punctuation, so close the sentence here rather than at every call site.
+    let failure = serde_json::from_slice::<Value>(bytes)
         .ok()
         .and_then(|value| {
             value
                 .pointer("/error")
                 .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|detail| !detail.is_empty())
                 .map(str::to_string)
         })
         .map(|detail| format!("{context}: {detail}"))
-        .unwrap_or_else(|| format!("{context}: HTTP {status}"))
+        .unwrap_or_else(|| format!("{context}: HTTP {status}"));
+    if failure.ends_with(['.', '!', '?']) {
+        failure
+    } else {
+        format!("{failure}.")
+    }
 }
 
 async fn response_failure(response: Response, context: &str) -> String {
@@ -900,8 +926,8 @@ pub(crate) fn emit_report_state(app: &AppHandle, event: ReportUploadStateEvent) 
 #[cfg(test)]
 mod tests {
     use super::{
-        REPORT_UPLOAD_LIMIT, cancelled_cleanup, read_bounded_snapshot, recover_granted_report,
-        validated_report_snapshot,
+        REPORT_UPLOAD_LIMIT, ReportRecoveryOutcome, cancelled_cleanup, read_bounded_snapshot,
+        recover_granted_report, validated_report_snapshot,
     };
     use crate::reports::{
         CreateReportCaseResponse, ReportGrantEndpoint, ReportRecoveryKind::Delete,
@@ -1180,5 +1206,57 @@ mod tests {
             outcome,
             Err(super::CreateCaseFailure::RemoteOutcomeUnknown(_))
         ));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn throttled_pending_recovery_does_not_confirm_cleanup() {
+        use std::io::Write;
+        use std::net::TcpListener;
+        use std::thread;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let origin = Url::parse(&format!("http://{address}/")).unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request).unwrap();
+            let body = r#"{"error":"too many report cases"}"#;
+            write!(
+                stream,
+                "HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nRetry-After: 60\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        });
+        let identity = ReportRemoteIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            bytes: 3,
+            sha256: "a".repeat(64),
+        };
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let outcome = super::recover_pending_report(
+            &client,
+            &origin,
+            "00000000-0000-4000-8000-000000000002",
+            &identity,
+        )
+        .await;
+        server.join().unwrap();
+        match outcome {
+            ReportRecoveryOutcome::RemoteOutcomeUnknown { case_id, detail } => {
+                assert_eq!(case_id, None);
+                assert!(detail.contains("too many report cases"), "{detail}");
+            }
+            other => panic!("throttled recovery must stay unresolved, got {other:?}"),
+        }
     }
 }

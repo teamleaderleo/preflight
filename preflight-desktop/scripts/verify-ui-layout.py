@@ -40,6 +40,7 @@ PAGE_RECOVERY_SCENARIOS = (
     "profile-mismatch",
     "update-error",
     "report-error",
+    "report-unknown",
 )
 PAGE_DATA_SCENARIOS = ("frame-pacing",)
 
@@ -698,6 +699,21 @@ def exercise_recovery_state(
             page.get_by_text("It wasn’t sent", exact=True).wait_for()
             page.get_by_role("button", name="Try sending again", exact=True).wait_for()
             result = assert_page_width(page, label)
+        elif scenario == "report-unknown":
+            page.get_by_role("button", name="Help", exact=True).click()
+            page.get_by_role("button", name="Make a support file", exact=True).click()
+            page.get_by_role("button", name="Review and send", exact=True).click()
+            page.get_by_role("button", name="Send file", exact=True).click()
+            page.get_by_text("Support file not sent yet", exact=True).wait_for()
+            page.get_by_role("button", name="Check again", exact=True).wait_for()
+            result = assert_page_width(page, label)
+            capture(page, output_dir, f"state-{scenario}-{width}x{height}.png")
+            page.get_by_role("button", name="Check again", exact=True).click()
+            page.get_by_text("Support file not sent yet", exact=True).wait_for(state="detached")
+            # The recheck re-arms the idle status read, so sending re-enables shortly after the
+            # alert leaves rather than in the same frame.
+            page.locator("button:not([disabled])", has_text="Review and send").wait_for()
+            return result, errors
         else:
             raise RuntimeError(f"unknown recovery scenario: {scenario}")
         capture(page, output_dir, f"state-{scenario}-{width}x{height}.png")

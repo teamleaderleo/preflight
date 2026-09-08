@@ -50,6 +50,7 @@ export function HelpPage({
     reportUploading,
     copyRunReportReceipt,
     dismissRunReportReceipt,
+    recheckReportIntake,
     removeRunReport,
     saveDiagnostics,
     setReportReview,
@@ -198,7 +199,19 @@ export function HelpPage({
         </details>
       </section>
 
-      {diagnosticsExport && reportIntake && !reportIntake.configured ? <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "This build can’t send support files."} The ZIP is still on this computer.</p> : null}
+      {diagnosticsExport && reportIntake && !reportIntake.configured ? (
+        reportIntake.reportCase ? (
+          // An unknown remote outcome is recoverable: native recovery runs again on the next status
+          // read, so offer that here instead of leaving sending disabled until a restart.
+          <section className="card report-recovery" aria-label="Support file needs attention" role="alert">
+            <strong>Support file not sent yet</strong>
+            <p>{reportIntake.reason ?? "The remote report outcome is unknown."} The ZIP is still on this computer.</p>
+            <div className="report-recovery__actions">
+              <button className="button button--quiet button--compact" type="button" onClick={recheckReportIntake} disabled={diagnosticsBusy || reportUploading}>Check again</button>
+            </div>
+          </section>
+        ) : <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "This build can’t send support files."} The ZIP is still on this computer.</p>
+      ) : null}
 
       {reportReview && diagnosticsExport ? (
         <section className="card report-review" aria-label="Run report consent">

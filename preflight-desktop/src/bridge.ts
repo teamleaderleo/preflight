@@ -60,6 +60,7 @@ export type BrowserPreviewScenario =
   | "benchmark-unavailable"
   | "update-error"
   | "report-error"
+  | "report-unknown"
   | "run-failure";
 
 const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
@@ -77,6 +78,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "benchmark-unavailable",
   "update-error",
   "report-error",
+  "report-unknown",
   "run-failure",
 ]);
 
