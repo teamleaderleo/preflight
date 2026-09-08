@@ -155,7 +155,7 @@ export function SettingsPage({
               value={afterLaunchBehavior}
               onChange={(event) => onAfterLaunchBehaviorChange(event.target.value as AfterLaunchBehavior)}
             >
-              <option value="minimize">Minimize</option>
+              <option value="minimize">Minimize until Starsector closes</option>
               <option value="keep">Keep open</option>
               <option value="quit">Quit</option>
             </select>

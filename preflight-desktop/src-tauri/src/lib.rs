@@ -488,6 +488,12 @@ fn watch_child(app: AppHandle, mut child: Child, after_launch_behavior: AfterLau
                 detail,
             },
         );
+        // Minimize means "out of the way while the game runs". Bring the window back so the run
+        // report, or a failed-run recovery card, is not left behind in a minimized window.
+        if after_launch_behavior == AfterLaunchBehavior::Minimize {
+            let reveal = app.clone();
+            let _ = app.run_on_main_thread(move || reveal_main_window(&reveal));
+        }
     });
 }
 
