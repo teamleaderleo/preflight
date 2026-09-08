@@ -60,6 +60,7 @@ export type BrowserPreviewScenario =
   | "benchmark-unavailable"
   | "update-error"
   | "report-error"
+  | "report-unknown"
   | "run-failure";
 
 const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
@@ -77,6 +78,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "benchmark-unavailable",
   "update-error",
   "report-error",
+  "report-unknown",
   "run-failure",
 ]);
 
@@ -1182,7 +1184,7 @@ const PREVIEW_PROJECT_LINKS: Record<ProjectLink, string> = {
   "getting-started": "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
   privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
   capabilities: "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
-  "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
+  "report-issue": "https://github.com/teamleaderleo/preflight/issues/new?template=support.yml",
   "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
 };
 

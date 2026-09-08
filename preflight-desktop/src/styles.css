@@ -1579,6 +1579,18 @@ button.last-run-health:hover {
   margin-top: 6px;
 }
 
+.report-recovery__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* A recovery card standing beside the Help cards shares their gutter instead of the nested inset. */
+.help-page > .report-recovery {
+  padding: 20px 24px;
+}
+
 .card__heading {
   display: flex;
   align-items: flex-start;

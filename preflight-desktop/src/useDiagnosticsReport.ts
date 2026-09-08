@@ -355,6 +355,13 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     setReportReceipt(null);
   };
 
+  const recheckReportIntake = () => {
+    if (reportUploadingRef.current || diagnosticsBusyRef.current) return;
+    // Clearing the session status re-arms the same idle fetch that fills it on navigation. Native
+    // recovery runs inside that status read, so an unknown remote outcome gets reconciled again.
+    setReportIntake(null);
+  };
+
   const removeRunReport = async () => {
     if (!reportReceipt || reportDeleting) return;
     setReportDeleting(true);
@@ -388,6 +395,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     clearReportReceipt,
     copyRunReportReceipt,
     dismissRunReportReceipt,
+    recheckReportIntake,
     removeRunReport,
     saveDiagnostics,
     setReportReview,

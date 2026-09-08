@@ -118,7 +118,7 @@ const PROJECT_LINKS: [(&str, &str); 6] = [
     ),
     (
         "report-issue",
-        "https://github.com/teamleaderleo/preflight/issues/new",
+        "https://github.com/teamleaderleo/preflight/issues/new?template=support.yml",
     ),
 ];
 

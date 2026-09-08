@@ -168,7 +168,7 @@ test("native commands and fixed links are derived from host code", () => {
     "getting-started": "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
     privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
     project: "https://github.com/teamleaderleo/preflight",
-    "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
+    "report-issue": "https://github.com/teamleaderleo/preflight/issues/new?template=support.yml",
     "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
   });
 });
