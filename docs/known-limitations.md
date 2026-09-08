@@ -1,4 +1,5 @@
 # Known limitations
+<!-- This page ships inside the desktop package as legal/KNOWN_LIMITATIONS.md, so links stay absolute. -->
 
 ## TL;DR
 
@@ -17,7 +18,7 @@ That's the practical list. The rest of this page gives the important qualifiers.
 
 Preflight is in release-candidate work. Source/UI convergence and private signing rehearsals are complete; public packages wait on the exact retained candidate's remaining native/package evidence and release authorization.
 
-For the moving checklist, use [Release readiness](release-readiness.md) or [#652](https://github.com/teamleaderleo/preflight/issues/652). This page doesn't duplicate the whole release program.
+For the moving checklist, use [Release readiness](https://github.com/teamleaderleo/preflight/blob/main/docs/release-readiness.md) or [#652](https://github.com/teamleaderleo/preflight/issues/652). This page doesn't duplicate the whole release program.
 
 ## Platform signing
 
@@ -52,7 +53,7 @@ Prepared data trades storage and one-time/repeated preparation work for cheaper 
 
 The desktop calculates the current profile's temporary and finished requirements before writing and keeps a free-space reserve. Cleanup is preview-first.
 
-See [Performance and storage tradeoffs](performance-storage-tradeoffs.md) for the current modes and measurements.
+See [Performance and storage tradeoffs](https://github.com/teamleaderleo/preflight/blob/main/docs/performance-storage-tradeoffs.md) for the current modes and measurements.
 
 ## Java, paths, and locale edge cases
 
@@ -60,7 +61,7 @@ The shipped Java code targets Java 17 bytecode, while the project also exercises
 
 There are extra compatibility paths for filenames/profile names that the selected process encoding can't represent, and Starsector itself has locale-sensitive behavior in a few case-insensitive lookups. Preflight aims to preserve the game's behavior at those boundaries rather than silently invent different semantics.
 
-If you're investigating one of those edge cases, read [Java runtime support](java-runtime-support.md). Most users don't need that implementation detail.
+If you're investigating one of those edge cases, read [Java runtime support](https://github.com/teamleaderleo/preflight/blob/main/docs/java-runtime-support.md). Most users don't need that implementation detail.
 
 ## Diagnostics aren't ambient telemetry
 
@@ -68,10 +69,10 @@ Preflight has no user account or ordinary usage-telemetry system.
 
 A configured release can send a bounded support ZIP after the user reviews and confirms it. Ordinary builds can save that ZIP locally. The first beta doesn't automatically send failed-run reports.
 
-See [Diagnostics](diagnostics.md) and [Privacy](privacy.md) for the exact boundary.
+See [Diagnostics](https://github.com/teamleaderleo/preflight/blob/main/docs/diagnostics.md) and [Privacy](https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md) for the exact boundary.
 
 ## No remote runtime kill switch
 
 There isn't a server-side switch that can silently change runtime behavior after installation.
 
-If a reviewed adapter is implicated in a problem, use **Off / troubleshooting** and follow the [rollback path](rollback.md). Changing accepted fingerprints/default plans requires an updated Preflight package.
+If a reviewed adapter is implicated in a problem, use **Off / troubleshooting** and follow the [rollback path](https://github.com/teamleaderleo/preflight/blob/main/docs/rollback.md). Changing accepted fingerprints/default plans requires an updated Preflight package.
