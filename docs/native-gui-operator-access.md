@@ -3,6 +3,9 @@
 Use this with the live release operator board, not as evidence that a selected release package has
 passed. Dated native observations belong in `docs/evidence/`; browser previews and CI are separate.
 
+For game input, screenshots, and shutdown, use the [automation route selector](desktop-smoke-automation.md#choose-the-operator-route).
+This document owns access to the desktop, not game-process attachment.
+
 ## Big Red and Linux
 
 The canonical Linux checkout is `/home/leo/Projects/preflight`. From the Mac, `ssh big-red` uses
