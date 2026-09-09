@@ -298,13 +298,22 @@ final class LinuxDesktopSmokeDriver implements DesktopSmokeDriver {
 
     @Override
     public void attach(ProcessTarget target) throws Exception {
+        attach(target, true);
+    }
+
+    /** Bind a capture observer without activating the window or injecting a focus click. */
+    void attachForObservation(ProcessTarget target) throws Exception {
+        attach(target, false);
+    }
+
+    private void attach(ProcessTarget target, boolean focus) throws Exception {
         if (target == null || target.pid() <= 0 || target.startedAt() == null) {
             throw new IllegalArgumentException("A PID and process start instant are required");
         }
         requireSameLifetime(target);
         this.target = target;
         Window window = waitForWindow(target, Duration.ofSeconds(8));
-        focusForStartup(target, window);
+        if (focus) focusForStartup(target, window);
     }
 
     @Override
