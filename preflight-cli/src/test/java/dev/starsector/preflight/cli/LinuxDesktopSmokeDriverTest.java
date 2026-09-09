@@ -17,6 +17,22 @@ final class LinuxDesktopSmokeDriverTest {
     Path temporaryDirectory;
 
     @Test
+    void observationAttachmentDoesNotActivateOrInjectInput() throws Exception {
+        FakeCommands commands = new FakeCommands();
+        LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
+                commands, "xdotool", "import", "ydotool", "wmctrl", "python3",
+                Map.of("DISPLAY", ":0", "XDG_SESSION_TYPE", "wayland"));
+        ProcessHandle current = ProcessHandle.current();
+        driver.attachForObservation(new DesktopSmokeDriver.ProcessTarget(
+                current.pid(), current.info().startInstant().orElseThrow()));
+        assertTrue(commands.commands.stream().noneMatch(command ->
+                command.get(0).equals("wmctrl") || command.get(0).equals("ydotool")
+                        || command.contains("windowactivate")
+                        || (command.get(0).equals("python3") && command.size() > 4)));
+        assertTrue(driver.observe().detail().contains("PID " + current.pid()));
+    }
+
+    @Test
     void selectsTheLargestVisibleWindowOwnedByOnlyTheExactPid() throws Exception {
         FakeCommands commands = new FakeCommands();
         LinuxDesktopSmokeDriver driver = new LinuxDesktopSmokeDriver(
