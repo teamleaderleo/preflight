@@ -147,6 +147,7 @@ class StarsectorDiscoveryTest {
         Path game = executableInBundle(applications.resolve("Starsector.app"), "starsector_mac.sh");
         executableInBundle(applications.resolve("Preflight.app"), "starsector-preflight-desktop");
         executableInBundle(applications.resolve("Safari.app"), "Safari");
+        executableInBundle(applications.resolve("Fastmail.app"), "Fastmail");
 
         DiscoveryResult result = StarsectorDiscovery.discover(
                 Platform.MAC,
@@ -159,6 +160,37 @@ class StarsectorDiscoveryTest {
         assertNotNull(result.selected());
         assertEquals(game.toAbsolutePath().normalize(), result.selected().launcher());
         assertEquals(1, result.candidates().size(), result.candidates().toString());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void unrelatedFastNamedBundlesDoNotMakeAnInstallationReady() throws Exception {
+        Path applications = temporaryDirectory.resolve("Applications");
+        executableInBundle(applications.resolve("Fastmail.app"), "Fastmail");
+        executableInBundle(applications.resolve("FastScripts.app"), "FastScripts");
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.MAC, temporaryDirectory, temporaryDirectory.resolve("elsewhere"),
+                Map.of(), applications, null);
+
+        assertNull(result.selected());
+        assertTrue(result.candidates().isEmpty(), result.candidates().toString());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void recognizesFastRenderingBundleNamesWithoutAcceptingEveryFastApp() throws Exception {
+        for (String name : List.of("FastRendering.app", "Fast Rendering.app", "Fast-Rendering.app",
+                "Fast_Rendering.app", "fr.app")) {
+            Path applications = temporaryDirectory.resolve(name + "-parent");
+            Path launcher = executableInBundle(applications.resolve(name), "JavaApplicationStub");
+            DiscoveryResult result = StarsectorDiscovery.discover(
+                    Platform.MAC, temporaryDirectory, temporaryDirectory.resolve("elsewhere"),
+                    Map.of(), applications, null);
+            assertNotNull(result.selected(), name);
+            assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher(), name);
+            assertEquals(1, result.candidates().size(), name);
+        }
     }
 
     /**

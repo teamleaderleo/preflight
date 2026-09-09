@@ -312,8 +312,12 @@ final class StarsectorDiscovery {
 
     private static boolean looksLikeStarsectorBundle(Path app) {
         String name = app.getFileName().toString().toLowerCase(Locale.ROOT);
+        // "fast" alone also matches unrelated applications such as Fastmail and FastScripts.
+        // Keep the renderer's common bundle spellings without offering those apps as the game.
+        String compactName = name.replace(" ", "").replace("-", "").replace("_", "");
         return !name.contains("preflight")
-                && (name.contains("starsector") || name.contains("fast") || name.equals("fr.app"));
+                && (name.contains("starsector") || compactName.equals("fastrendering.app")
+                        || name.equals("fr.app"));
     }
 
     private static boolean isAppBundle(Path path) {
