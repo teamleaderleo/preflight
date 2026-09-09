@@ -2,8 +2,9 @@
 
 Check this index before writing a new script or driving the game by hand.
 
-For native GUI checks, [Native GUI operator access](../docs/native-gui-operator-access.md) records
-the verified SSH/RDP/Moonlight routes, installation locations, and runtime shared-GPU handover.
+For launcher/game interaction, start with the [automation route selector](../docs/desktop-smoke-automation.md#choose-the-operator-route): existing exact-PID drivers own game input, screenshots, and cleanup.
+[Native GUI operator access](../docs/native-gui-operator-access.md) owns SSH/RDP/Moonlight access,
+installation locations, and runtime shared-GPU handover.
 
 ## Optional Fast Rendering port identity
 

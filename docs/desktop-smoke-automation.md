@@ -1,5 +1,53 @@
 # Desktop smoke automation contract
 
+## Choose the operator route
+
+Read this before automating a launcher or game window. Use the existing routes below rather than
+recreating process discovery, input, capture, or shutdown in a one-off script.
+
+| Task | Existing route | What it establishes |
+|---|---|---|
+| Preflight folder picker, settings, Apply, window layout, or the stock launcher | Native UI interaction; [operator access](native-gui-operator-access.md) owns platform access and GPU handover | Actual visible interaction with the selected installed package. A browser preview does not establish native behavior. |
+| Game input, screenshot, Continue, or orderly shutdown | `desktop smoke probe`, then a checked scenario through `desktop smoke launch` or `desktop smoke run`, documented below | Exact PID/start-instant attachment and scenario evidence. Inspect capabilities and diagnostics before proceeding. |
+| Startup timing only | [Startup script modes](../scripts/README.md#launch-the-game-and-find-out-where-the-time-went) and [measurement protocol](startup-benchmark.md) | `processStartedAt → mainMenuInteractiveAt`; screenshots are not the clock. |
+| Campaign/combat route or save lifecycle | [Gameplay helpers](../scripts/README.md#exercise-campaign-combat-and-save-lifecycle) | Scenario-specific evidence; save/reload acceptance still requires the disposable-save human pilot. |
+
+For a standalone development driver, resolve the intended engine JAR and its compatible Java
+runtime, then run `java -jar preflight.jar desktop smoke probe`. Read `probe.ready` and diagnostics:
+the command can exit zero while reporting an unavailable driver. This probe does not prove capture
+permission or live interaction. The product benchmark's packaged readiness probe checks its two
+startup scenarios; it is not a game-input driver probe.
+
+Choose a scenario by reading its actions first. For example,
+[`campaign-roam.json`](../scripts/scenarios/campaign-roam.json) includes Continue, movement,
+screenshot capture, and quit; it is not a harmless screenshot-only command. Select a disposable
+campaign before running it because mods may autosave. `desktop smoke run` attaches to an existing
+smoke-enabled run through its `runtime-process.json`; it is not a generic attachment command for
+an arbitrary ordinary launch. `desktop smoke launch` owns a new launch and its cleanup.
+
+On macOS, do not activate the game by app name, bundle lookup, or Dock selection. A directly
+launched Java window can belong to `com.azul.zulu.java` while `Starsector.app` is dormant; resolving
+the latter may start a second launcher. Use the recorded PID/start instant and the existing driver.
+If a general UI tool cannot attach, inspect this route before declaring game automation unavailable.
+Linux's native driver requires X11, `xdotool`, and ImageMagick `import`; Windows uses the exact-PID
+window handle. Missing capabilities are an explicit skip, not evidence of a game defect.
+
+Keep screenshots for visual inspection separate from semantic readiness and timing. A capture alone
+does not prove fidelity without inspecting it against the intended scene/reference, resolution, and
+scaling. Retain failed/skipped receipts and verify owned processes exited; a controller's fallback
+termination does not establish that the user-facing Quit or Stop interaction worked.
+
+Implementation owners: [CLI dispatch](../preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopBridgeCommand.java),
+[launch ownership](../preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeLaunch.java),
+[scenario runner](../preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopSmokeRunner.java),
+and the adjacent `MacDesktopSmokeDriver`, `WindowsDesktopSmokeDriver`, and `LinuxDesktopSmokeDriver`.
+The native host's [automation coordinator](../preflight-desktop/src-tauri/src/automation.rs) and
+[macOS bridge](../preflight-desktop/src-tauri/src/desktop_automation_bridge.rs) own packaged integration.
+These are repository-specific contracts; keep directions here rather than duplicating them in a
+personal skill. Dated runs belong in `docs/evidence/`.
+
+## Scenario validation
+
 The scenario describes *what* a smoke test does without choosing the macOS, Windows, or Linux UI
 driver that does it. Validate and normalize a scenario with:
 
