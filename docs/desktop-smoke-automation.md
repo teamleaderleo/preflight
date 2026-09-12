@@ -18,6 +18,15 @@ the command can exit zero while reporting an unavailable driver. This probe does
 permission or live interaction. The product benchmark's packaged readiness probe checks its two
 startup scenarios; it is not a game-input driver probe.
 
+For shutdown, use the existing owner before a raw process signal. A smoke scenario has its
+`quit` action and the launch owner has `cancel.requested` cancellation (documented below).
+For a normal recorded launch, the native Stop command uses the bundled engine's
+`stop --json --user-requested --timeout-seconds 20 --pid PID`. Resolve PID from that run's
+`runtime-process.json`, use the same Preflight home, and inspect `--dry-run` first when driving
+it directly. Keep the explicit PID: omitting it selects all recorded live runs. Preserve the
+structured stop result. Successful engine shutdown verifies the backend path, not delivery of
+a click to the visible Stop button. Native app interaction remains a separate acceptance check.
+
 Choose a scenario by reading its actions first. For example,
 [`campaign-roam.json`](../scripts/scenarios/campaign-roam.json) includes Continue, movement,
 screenshot capture, and quit; it is not a harmless screenshot-only command. Select a disposable
