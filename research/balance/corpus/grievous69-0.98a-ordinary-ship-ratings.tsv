@@ -1,0 +1,90 @@
+category	source_label	ai_tier	player_tier	variant_context	source
+capital	Astral	A-		base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Atlas MkII	B-		base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Conquest	B	A	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Executor	A+		base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Invictus	B	A	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Legion	A		base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Legion (XIV)	A		XIV	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Odyssey	C	A+	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Onslaught	A	S-	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Onslaught (XIV)	A+	S	XIV	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Paragon	A		base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Pegasus	C	A-	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Prometheus MkII	B	B+	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+capital	Retribution	D+	A+	base	https://www.reddit.com/r/starsector/comments/1k6ydy5/
+cruiser	Anubis	A		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Apogee	B-		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Aurora	A-	S-	base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Champion	A-		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Dominator	C+		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Dominator (XIV)	B-		XIV	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Doom	B	S+	base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Eagle	A		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Eagle (LG)	B		Lion's Guard	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Eagle (XIV)	A		XIV	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Eradicator	A		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Eradicator (P)	B	A	Pirate	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Falcon	B-		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Falcon (LG)	B-		Lion's Guard	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Falcon (P)	B+	A+	Pirate	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Falcon (XIV)	C		XIV	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Fury	C	A	base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Grendel	B+	A	base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Gryphon	B-		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Heron	A-		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Mora	B+		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Venture	C		base	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Venture (LP)	B-		Luddic Path	https://www.reddit.com/r/starsector/comments/1k9569u/
+cruiser	Venture (P)	B+		Pirate	https://www.reddit.com/r/starsector/comments/1k9569u/
+destroyer	Condor	B+		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Drover	A		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Enforcer	B		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Enforcer (XIV)	B		XIV	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Gemini	B-		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Hammerhead	C+		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Hammerhead (LG)	D		Lion's Guard	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Harbinger	C	A	base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Manticore	A		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Manticore (LP)	B	A+	Luddic Path	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Medusa	A+	S	base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Mule	C-		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Mule (P)	C		Pirate	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Shrike	C+	A-	base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Shrike (P)	C	B+	Pirate	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Sunder	A		base	https://www.reddit.com/r/starsector/comments/1kca3jd/
+destroyer	Sunder (LG)	C		Lion's Guard	https://www.reddit.com/r/starsector/comments/1kca3jd/
+frigate	Afflictor	B	S	base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Afflictor (P)	C	A-?	Pirate; player tier explicitly uncertain in source	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Brawler	C-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Brawler (LG)	D-		Lion's Guard	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Brawler (LP)	A	S	Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Brawler (TT)	B+		Tri-Tachyon	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Centurion	A		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Centurion (LG)	B-		Lion's Guard	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Cerberus	F		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Cerberus (LP)	F+		Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Gremlin	D-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Gremlin (LP)	D		Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Hound	F		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Hound (LP)	D+		Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Hound (other variants)	F		grouped by source	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Hyperion	C	A	base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Kite	C-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Kite (A)	C		A variant	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Kite (LP)	C+		Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Lasher	C-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Lasher (LP)	C-		Luddic Path	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Monitor	SS		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Omen	S		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Scarab	S-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Shade	C		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Shade (P)	D		Pirate	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Shepherd	B-		base; campaign value explicitly contributes	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Tempest	A		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Vanguard	C-		base; revised upward from D+ in source edit	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Vigilance	C+		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Wayfarer	D-		base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Wolf	B-	A	base	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Wolf (H)	C		H variant	https://www.reddit.com/r/starsector/comments/1kh6jan/
+frigate	Wolf (P)	C-		Pirate	https://www.reddit.com/r/starsector/comments/1kh6jan/
