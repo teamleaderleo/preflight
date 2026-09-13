@@ -111,7 +111,9 @@ final class AdapterHealthReport {
         boolean originalCodeRetained = applied == 0
                 || sourceBindingRejected > 0 || unavailablePlans > 0 || declined > 0 || shadowed > 0;
         boolean reviewRecommended = status == Status.ERROR
-                || status == Status.SAFE_FALLBACK || status == Status.PARTIAL;
+                || status == Status.SAFE_FALLBACK
+                || containedFailures > 0 || cacheRejectionSignals > 0
+                || wrapperFailureSignals > 0 || runtimeIntegrityFailures > 0;
         List<String> evidenceKinds = evidenceKinds(
                 mismatchDetails, sourceBindingRejected, unavailablePlans, declined, shadowed,
                 containedFailures, cacheMisses, cacheRejectionSignals, wrapperFailureSignals,

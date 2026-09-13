@@ -3209,7 +3209,8 @@ final class AdapterTargetRegistry {
                 && Boolean.getBoolean(TexturePreparedStagingRuntime.ENABLED_PROPERTY)) {
             registry = registry.withTarget(windowsTexturePreparedStagingTarget());
         }
-        if (AssetProgressLogRuntime.suppress()) {
+        if (AssetProgressLogRuntime.suppress()
+                && System.getProperty("os.name", "").startsWith("Windows")) {
             registry = registry.withTarget(windowsScriptProgressTarget());
         }
         registry = registry
@@ -3262,10 +3263,12 @@ final class AdapterTargetRegistry {
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget())
-                .withTarget(combatStateInputTarget())
                 .withTarget(windowsCombatRuntimeIntegrityTarget())
-                .withTarget(windowsCombatStateInputTarget())
                 .withTarget(collisionQuerySetTarget());
+        if (InternalGameControlRuntime.enabled()) {
+            registry = registry.withTarget(combatStateInputTarget())
+                    .withTarget(windowsCombatStateInputTarget());
+        }
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());
         }

@@ -232,7 +232,7 @@ test("latest-run compatibility stays short and treats fallback as a safe result"
     status: "PARTIAL",
     originalCodeRetained: true,
     reviewRecommended: true,
-  })).toBe("Some optimizations skipped · Details");
+  })).toBe("Last run needs attention · Details");
   expect(adapterHealthLine({
     ...base,
     status: "SAFE_FALLBACK",
@@ -557,7 +557,7 @@ test("a stale remembered installation falls back to normal discovery", async () 
   bootstrap.mockRestore();
 });
 
-test("home surfaces the latest compatibility verdict without exposing the raw report", async () => {
+test("home keeps ordinary compatibility fallbacks out of the launch warning", async () => {
   const base = await bridge.getSnapshot();
   const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
     ...base,
@@ -583,12 +583,11 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
 
   render(<App />);
 
-  expect(await screen.findByText("Some optimizations skipped · Details"))
-    .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
-  expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Some optimizations skipped · Details" }));
-  expect(await screen.findByRole("heading", { name: "Last run compatibility" })).toBeVisible();
-  expect(screen.getByText("Keep playing if the game is otherwise healthy.")).toBeVisible();
+  expect(await screen.findByText("Ready")).toBeInTheDocument();
+  expect(screen.queryByText("Last run needs attention · Details")).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Help" }));
+  const details = await screen.findByText("Last run details");
+  expect(details.closest("details")).not.toHaveAttribute("open");
   snapshot.mockRestore();
 });
 
@@ -647,9 +646,9 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(screen.getByRole("button", { name: "Help" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Help" }));
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Support file" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Copy setup" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Save setup summary…" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Save setup" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Open issue" })).toBeVisible();
 
   snapshot.mockRestore();
@@ -717,7 +716,7 @@ test("a failed launch offers help, and help is one click away from making the fi
   await user.click(screen.getByRole("button", { name: "Get help" }));
 
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Support file" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Benchmark", level: 1 })).not.toBeInTheDocument();
 });
 
@@ -1525,7 +1524,7 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   expect(screen.getByText(/Whether the launch finished, which Java version ran/)).toBeInTheDocument();
   expect(screen.getByText(/Game, mod, save, texture, audio or compiled-code contents/)).toBeInTheDocument();
   expect(screen.getByText(/Performance recordings, screenshots, audio or files Preflight doesn’t recognize/)).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Make a support file" }));
+  await user.click(screen.getByRole("button", { name: "Support file" }));
 
   expect(await screen.findByText("Support file ready")).toBeInTheDocument();
   expect(screen.getByText(/Support file saved with 14 files/)).toBeInTheDocument();
@@ -1611,11 +1610,11 @@ test("an unconfigured build keeps local export available and refuses report send
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
+  await user.click(await screen.findByRole("button", { name: "Support file" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review and send" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Make another one" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "New support file" })).toBeEnabled();
   intake.mockRestore();
 });
 
@@ -1626,7 +1625,7 @@ test("a failed report send keeps one recovery alert and the local ZIP", async ()
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
+  await user.click(await screen.findByRole("button", { name: "Support file" }));
   await user.click(await screen.findByRole("button", { name: "Review and send" }));
   await user.click(screen.getByRole("button", { name: "Send file" }));
 
@@ -1645,7 +1644,7 @@ test("an unknown report outcome offers a recheck instead of waiting for a restar
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
+  await user.click(await screen.findByRole("button", { name: "Support file" }));
   await user.click(await screen.findByRole("button", { name: "Review and send" }));
   await user.click(screen.getByRole("button", { name: "Send file" }));
 
@@ -1693,7 +1692,7 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(screen.getByRole("button", { name: "Help" }));
-  expect(await screen.findByRole("button", { name: "Make a support file" })).toBeDisabled();
+  expect(await screen.findByRole("button", { name: "Support file" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Open Benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
@@ -1816,7 +1815,7 @@ test("help remains a permanent primary route", async () => {
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Support file" })).toBeVisible();
 });
 
 /*

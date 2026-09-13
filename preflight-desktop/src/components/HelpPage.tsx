@@ -7,6 +7,8 @@ import { openProjectLink } from "../bridge";
 import { formatBytes, shortPath } from "../uiFormat";
 import type { AdapterHealthSummary, DesktopSnapshot, NoticeTone, OptimizationPreset } from "../types";
 
+import { adapterHealthNeedsAttention } from "../adapterHealthText";
+
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
 
 interface HelpPageProps {
@@ -62,16 +64,14 @@ export function HelpPage({
     <div className="settings-page help-page">
       <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
 
-      {adapterHealth?.reviewRecommended ? (
-        <section className="card help-boundary-card" aria-labelledby="compatibility-title">
-          <h2 id="compatibility-title">Last run compatibility</h2>
-          <p>{adapterHealth.status === "ERROR"
-            ? "Preflight couldn’t finish checking the last run. Save a support file below to investigate."
-            : "Some optimizations did not apply. You can still launch; check these suggested actions if the game looks wrong or feels slower."}</p>
+      {adapterHealth && (adapterHealth.status === "PARTIAL" || adapterHealthNeedsAttention(adapterHealth)) ? (
+        <details className="card settings-disclosure" open={adapterHealthNeedsAttention(adapterHealth)}>
+          <summary>Last run details</summary>
+          <p>{adapterHealth.transformationsApplied} optimizations active.</p>
           {adapterHealth.suggestedActions.length > 0 ? (
             <ul>{adapterHealth.suggestedActions.map((action, index) => <li key={`${index}:${action}`}>{action}</li>)}</ul>
           ) : null}
-        </section>
+        </details>
       ) : null}
 
       <section className="card fixes-card">
@@ -109,18 +109,10 @@ export function HelpPage({
         </ul>
       </section>
 
-      <section className="card help-boundary-card" aria-labelledby="help-boundary-title">
-        <div className="card__heading">
-          <div><p className="eyebrow">Your files</p><h2 id="help-boundary-title">What Preflight changes</h2></div>
-          <ShieldIcon className="settings-check" />
-        </div>
-        <p>Prepared data stays in Preflight’s own storage. Optimized launches don’t rewrite Starsector or mod files, and prepared data never goes into campaign saves.</p>
-        <ul className="help-boundary-facts">
-          <li><strong>Repair and Free space</strong> remove only Preflight-owned data, not game files, mods, or saves.</li>
-          <li><strong>Saving after launch</strong> remains Starsector’s job; the game and mods can still write to the save normally.</li>
-          <li><strong>Profiles and launch settings</strong> write Starsector preferences only when you apply a named profile or save launch settings. Preflight makes a backup first.</li>
-        </ul>
-      </section>
+      <details className="settings-disclosure help-boundary-card">
+        <summary>Files and saves</summary>
+        <p>Preparation, Repair and Free space affect only Preflight’s cache. Applying settings updates game preferences and makes a backup. Starsector and mods manage campaign saves.</p>
+      </details>
 
       <section className="card support-card">
         <div className="support-card__main">
@@ -128,20 +120,18 @@ export function HelpPage({
             <div className="heading-with-info">
               <h2>{diagnosticsExport ? "Support file ready" : "Report a problem"}</h2>
             </div>
-            <p>{diagnosticsExport
-              ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Copy or save a public setup summary. Make a support file only when more detail is needed."}</p>
+            {diagnosticsExport ? <p>{formatBytes(diagnosticsExport.bytes)} · {shortPath(diagnosticsExport.output)}</p> : null}
           </div>
           <div className="report-actions">
             <button className={`button ${setupCopy.copyState === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupSummaryBusy}>
               {setupCopy.copyState === "copying" ? "Copying…" : setupCopy.copyState === "copied" ? "Setup copied" : "Copy setup"}
             </button>
             <button className="button button--quiet button--support" type="button" onClick={() => void setupCopy.saveSetupSummary()} disabled={operationBlocked || setupSummaryBusy}>
-              <FolderIcon />{setupCopy.saveState === "saving" ? "Saving…" : setupCopy.saveState === "saved" ? "Summary saved" : "Save setup summary…"}
+              {setupCopy.saveState === "saving" ? "Saving…" : setupCopy.saveState === "saved" ? "Summary saved" : "Save setup"}
             </button>
-            <button className="button button--quiet button--support" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue<ArrowIcon /></button>
+            <button className="button button--quiet button--support" type="button" onClick={() => void openProjectLink("report-issue")}>Open issue</button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
+              {diagnosticsBusy ? "Creating…" : diagnosticsExport ? "New support file" : "Support file"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Sent" : "Review and send"}</button> : null}
           </div>

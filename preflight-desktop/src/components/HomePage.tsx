@@ -11,7 +11,7 @@ import {
   ShipIcon,
   SparklesIcon,
 } from "../icons";
-import { adapterHealthLine } from "../adapterHealthText";
+import { adapterHealthLine, adapterHealthNeedsAttention } from "../adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "../desktopStorage";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
@@ -420,7 +420,7 @@ export function HomePage({
               <span>{playtime.launches.toLocaleString()} sessions</span>
             </div>
           ) : null}
-          {isReady && lastAdapterHealth?.reviewRecommended && status !== "running" && status !== "launching" ? (
+          {isReady && lastAdapterHealth && adapterHealthNeedsAttention(lastAdapterHealth) && status !== "running" && status !== "launching" ? (
             <button
               type="button"
               className="last-run-health last-run-health--review"

@@ -693,7 +693,7 @@ def exercise_recovery_state(
             result = assert_page_width(page, label)
         elif scenario == "report-error":
             page.get_by_role("button", name="Help", exact=True).click()
-            page.get_by_role("button", name="Make a support file", exact=True).click()
+            page.get_by_role("button", name="Support file", exact=True).click()
             page.get_by_role("button", name="Review and send", exact=True).click()
             page.get_by_role("button", name="Send file", exact=True).click()
             page.get_by_text("It wasn’t sent", exact=True).wait_for()
@@ -701,7 +701,7 @@ def exercise_recovery_state(
             result = assert_page_width(page, label)
         elif scenario == "report-unknown":
             page.get_by_role("button", name="Help", exact=True).click()
-            page.get_by_role("button", name="Make a support file", exact=True).click()
+            page.get_by_role("button", name="Support file", exact=True).click()
             page.get_by_role("button", name="Review and send", exact=True).click()
             page.get_by_role("button", name="Send file", exact=True).click()
             page.get_by_text("Support file not sent yet", exact=True).wait_for()
