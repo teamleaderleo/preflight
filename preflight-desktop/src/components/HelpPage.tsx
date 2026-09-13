@@ -109,11 +109,6 @@ export function HelpPage({
         </ul>
       </section>
 
-      <details className="settings-disclosure help-boundary-card">
-        <summary>Files and saves</summary>
-        <p>Preparation, Repair and Free space affect only Preflight’s cache. Applying settings updates game preferences and makes a backup. Starsector and mods manage campaign saves.</p>
-      </details>
-
       <section className="card support-card">
         <div className="support-card__main">
           <div>
@@ -186,6 +181,10 @@ export function HelpPage({
               </ul>
             </section>
           </div>
+        </details>
+        <details className="settings-disclosure support-contents">
+          <summary>Files and saves</summary>
+          <p>Preparation, Repair and Free space affect only Preflight’s cache. Applying settings updates game preferences and makes a backup. Starsector and mods manage campaign saves.</p>
         </details>
       </section>
 

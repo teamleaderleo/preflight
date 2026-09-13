@@ -196,7 +196,7 @@ test("supporting copy stays legible while dense evidence remains compact", () =>
 
 test("Help keeps every report action in one deliberate group", () => {
   expect(styles).toMatch(/\.support-card__main\s*\{[^}]*align-items:\s*stretch;[^}]*flex-direction:\s*column;/s);
-  expect(styles).toMatch(/\.support-card__main \.report-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(auto-fit, minmax\(min\(100%, 180px\), 1fr\)\);/s);
+  expect(styles).toMatch(/\.support-card__main \.report-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/s);
   expect(styles).toMatch(/\.button--support\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s);
 });
 
