@@ -340,7 +340,7 @@ button {
   padding: 11px 13px;
   border: 0;
   border-radius: 4px;
-  color: #696561;
+  color: var(--ink-soft);
   background: transparent;
   font-size: 14px;
   font-weight: 540;
@@ -374,6 +374,10 @@ button {
   color: var(--ink);
   background: var(--accent-soft);
   box-shadow: inset 2px 0 var(--accent);
+}
+
+:root[data-theme="light"][data-palette] .nav__item--active {
+  color: var(--ink);
 }
 
 .nav__item:disabled {
@@ -1816,6 +1820,12 @@ button.last-run-health:hover {
   margin-bottom: 14px;
 }
 
+.benchmark-results__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 .benchmark-results__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2104,6 +2114,24 @@ button.last-run-health:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+@media (min-width: 1440px) {
+  .settings-page.benchmark-page--results {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.6fr);
+    align-content: start;
+    align-items: start;
+  }
+
+  .benchmark-page > :not(.benchmark-card):not(.benchmark-results) {
+    grid-column: 1 / -1;
+  }
+
+  .benchmark-page .benchmark-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .profiles-page {
@@ -3165,7 +3193,7 @@ button.last-run-health:hover {
 
 .profiles-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+  grid-template-columns: minmax(0, 1fr) minmax(250px, min(34%, 400px));
   gap: 16px;
   align-items: start;
 }

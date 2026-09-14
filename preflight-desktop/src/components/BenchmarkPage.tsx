@@ -75,7 +75,7 @@ export function BenchmarkPage({
   };
   const benchmarkCopied = benchmarkCopyState === "copied";
   return (
-    <div className="settings-page benchmark-page">
+    <div className={`settings-page benchmark-page${desktopBenchmarkComparison?.available ? " benchmark-page--results" : ""}`}>
       <NoticeBanner message={message} tone={messageTone} />
 
       <section className="card benchmark-card">
@@ -127,20 +127,23 @@ export function BenchmarkPage({
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">
             <div><p className="eyebrow">Latest comparison</p><h2>Optimizations off → on</h2></div>
+          </div>
+          <div className="benchmark-results__grid benchmark-results__grid--startup">
+            <BenchmarkResult label="Main menu" metric={benchmarkMetric} unit="time" />
+          </div>
+          <div className="benchmark-results__actions">
             {benchmarkMetric ? (
               <button
-                className="icon-button icon-button--small"
+                className="button button--quiet button--compact"
                 type="button"
                 aria-label={benchmarkCopied ? "Benchmark result copied" : "Copy benchmark result"}
                 title={benchmarkCopied ? "Benchmark result copied" : "Copy measured startup times and installation qualifier"}
                 onClick={() => void copyBenchmarkResult()}
               >
                 {benchmarkCopied ? <CheckIcon /> : <CopyIcon />}
+                {benchmarkCopied ? "Copied" : "Copy result"}
               </button>
-            ) : <CheckIcon className="settings-check" />}
-          </div>
-          <div className="benchmark-results__grid benchmark-results__grid--startup">
-            <BenchmarkResult label="Main menu" metric={benchmarkMetric} unit="time" />
+            ) : null}
           </div>
           {hasCampaignSmoothness ? (
             <>
