@@ -395,7 +395,7 @@ button {
   height: 100dvh;
   min-height: 0;
   margin: 0 auto;
-  padding: clamp(28px, 4vw, 48px) clamp(22px, 5vw, 56px) 28px;
+  padding: clamp(28px, 4vw, 48px) clamp(22px, 3vw, 40px) 28px;
 }
 
 .page-viewport {
@@ -413,12 +413,22 @@ button {
 }
 
 .topbar {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 28px;
   min-width: 0;
+}
+
+.topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -7px;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
 }
 
 .topbar__actions {
