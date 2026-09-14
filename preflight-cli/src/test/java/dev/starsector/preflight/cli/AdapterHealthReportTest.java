@@ -61,6 +61,7 @@ class AdapterHealthReportTest {
         assertEquals(AdapterHealthReport.Status.PARTIAL, result.status());
         assertTrue(result.accelerationsActive());
         assertTrue(result.originalCodeRetained());
+        assertFalse(result.reviewRecommended());
         assertTrue(result.suggestedActions().stream().anyMatch(value -> value.contains("another Java agent")));
     }
 
@@ -123,6 +124,7 @@ class AdapterHealthReportTest {
         AdapterHealthReport.Result result = analyze(adapter);
 
         assertEquals(AdapterHealthReport.Status.PARTIAL, result.status());
+        assertTrue(result.reviewRecommended());
         assertEquals(7, result.cacheMisses());
         assertEquals(3, result.cacheRejectionSignals());
         assertEquals(5, result.wrapperFailureSignals());
@@ -153,6 +155,19 @@ class AdapterHealthReportTest {
         assertFalse(result.originalCodeRetained());
         assertFalse(result.reviewRecommended());
         assertTrue(result.suggestedActions().isEmpty());
+    }
+
+    @Test
+    void partialCompatibilityWithoutRuntimeFailuresIsInformational() throws Exception {
+        Map<String, Object> adapter = base();
+        adapter.put("transformationsApplied", 51);
+        adapter.put("transformationDeclined", 1);
+        adapter.put("evaluations", List.of(Map.of("targetId", "other-platform",
+                "exact", false, "problems", List.of("class SHA-256 differs"))));
+        AdapterHealthReport.Result result = analyze(adapter);
+        assertEquals(AdapterHealthReport.Status.PARTIAL, result.status());
+        assertFalse(result.reviewRecommended());
+        assertFalse(result.mismatchDetails().isEmpty());
     }
 
     private AdapterHealthReport.Result analyze(Map<String, Object> adapter) throws Exception {
