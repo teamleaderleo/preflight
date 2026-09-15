@@ -1134,6 +1134,7 @@ mod tests {
             .unwrap();
         torn.write_all(b"{").unwrap();
         torn.sync_all().unwrap();
+        drop(torn); // Windows cannot finish removing the directory while this file is open.
         store.directory.sync().unwrap();
 
         assert!(matches!(
