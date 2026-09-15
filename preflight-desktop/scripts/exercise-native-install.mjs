@@ -7,6 +7,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -143,6 +144,35 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    // A same-version reinstall must replace the runtime, not overlay it.
+    // Keep an unrelated file beside the engine to catch overly broad cleanup.
+    const preserved = join(installDirectory, "operator-note.txt");
+    writeFileSync(preserved, "preserve outside the engine\n");
+    for (const mode of [[], ["/UPDATE"]]) {
+      writeFileSync(join(installDirectory, "engine", "runtime", "bin", "obsolete-runtime-fixture.dll"), "old payload");
+      run(packagePath, ["/S", ...mode, `/D=${installDirectory}`]);
+      verifyInstalledEngine(installDirectory);
+      if (readFileSync(preserved, "utf8") !== "preserve outside the engine\n") {
+        throw new Error("Windows reinstall changed a file outside its engine payload");
+      }
+    }
+    const outside = mkdtempSync(join(tmpdir(), "preflight-reinstall-outside-"));
+    const junction = join(installDirectory, "engine", "runtime", "external-fixture");
+    try {
+      writeFileSync(join(outside, "keep.txt"), "not package payload\n");
+      symlinkSync(outside, junction, "junction");
+      const rejected = spawnSync(packagePath, ["/S", `/D=${installDirectory}`], { encoding: "utf8" });
+      if (rejected.error) throw rejected.error;
+      if (rejected.status === 0) throw new Error("Windows reinstall accepted a linked engine tree");
+      if (readFileSync(join(outside, "keep.txt"), "utf8") !== "not package payload\n") {
+        throw new Error("Windows reinstall changed a linked external directory");
+      }
+    } finally {
+      rmSync(junction, { force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+    verifyInstalledEngine(installDirectory);
+    rmSync(preserved);
     const syntheticContract = exerciseSyntheticPackageContract(installDirectory);
     const desktopSmokeContract = exercisePackagedDesktopSmokeContract(installDirectory);
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installDirectory);

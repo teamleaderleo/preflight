@@ -31,6 +31,11 @@
   },
   "bundle": {
     "active": true,
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows-installer-hooks.nsh"
+      }
+    },
     "targets": "all",
     "category": "Utility",
     "publisher": "teamleaderleo",
