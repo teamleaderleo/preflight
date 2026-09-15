@@ -77,6 +77,55 @@ test and all PR checks passed. The capability source lock was reviewed for this 
 It merged as `c3fcba47`. A branch Distribution attempt (`34932095821`) ended before any job steps;
 it supplies no package evidence. The corrected main Distribution is
 [34932267389](https://github.com/teamleaderleo/preflight/actions/runs/34932267389).
+It passed all three platforms. The Windows installer SHA-256 is
+`e2a09fdcd240cd9db2c88cffe112e3a66d688a2ebc9ce9ab03a07b4381ff68b1`.
+
+### Windows installed-package finding
+
+The guest SSH route returned STAR-WIN11. Installed the corrected main Windows installer silently
+over the existing 0.1.0 installation at `C:\Users\leo\AppData\Local\Programs\Preflight`; exit 0.
+The installer hash matched its hosted SHA256SUMS. Installed engine JAR SHA-256 was
+`e45047149c1b989bc4fd7d4ea14e8ee33b4dfd710b3d77f47ce6ac20df0615ed`.
+
+Default installed verification first failed on B612 license bytes. Updating the clean Windows
+checkout from `6aa3dbd9` to exact candidate `c3fcba47` did not resolve it: installed text has CRLF
+(4748 characters), source has LF (4655), and they are equal after CRLF normalization. This is
+a reviewed-source comparison mismatch, not evidence that the license text changed.
+
+The existing `verifyReviewedSources:false` installed-candidate path then found a separate real
+inventory failure: extra `runtime/bin/syslookup.dll` and `runtime/conf/jaxp.properties`.
+The same-version silent reinstall did not remove these files. The pre-install tree was not
+inventoried, so this does not establish when they first appeared, or reproduce a version-changing
+upgrade. Do not claim this installed tree passed integrity, despite green fresh-install CI.
+Retained verifier failures are in the local evidence directory.
+
+Native interaction on that installed tree selected `C:\Games\Starsector` through the Windows
+folder picker and reached Ready. Readback was 1024×720 windowed, sound on, 4 GB, 100% UI,
+antialiasing off, battle size 400. Applied 410, observed verified success, closed/reopened and
+read 410. Restored 400 through Apply and observed verified success. No Windows game was
+launched from the mixed runtime.
+
+Closed Preflight and moved the mixed installation aside to
+`C:\Users\leo\AppData\Local\Programs\Preflight-mixed-runtime-20260915` for diagnosis.
+Installed the identical hashed installer into the now-empty original directory: exit 0.
+The installed-candidate verifier (`verifyReviewedSources:false`, the existing integrity mode)
+passed: 206 entries, 162 runtime files, 45,277,364 runtime bytes, no runtime changes, smoke passed.
+This repairs the operator installation; it does not prove an in-place reinstall removes extras.
+Follow-up: [#1321](https://github.com/teamleaderleo/preflight/issues/1321) tracks an isolated
+stale-file fixture and same-version/version-changing installer comparisons.
+
+A normal Launch from the clean install created run `20260914-144955-479-6232e3f9`, PID 9108
+(guest clock differs from the host). Starsector displayed `Pixel format not accelerated`;
+the trace reaches LWJGL WindowsPeerInfo.nChoosePixelFormat through Fast Rendering's Display
+bridge. The shared QXL profile did not provide the required accelerated pixel format. No menu
+marker was reached. Dismissed the game's error dialog; Preflight restored its window and showed
+Needs attention. Result: LAUNCHER_EXIT_NONZERO, exit 1, no postprocessing failures, PID absent.
+This is a failed launch, not a timing result or GPU-backed Windows game acceptance.
+
+After the attempted failed-run notice dismissal, another Preparing state appeared unexpectedly.
+Stopped it through the visible Stop button and observed Prepare and launch again before closing
+the app. The cause is unresolved; source wires Dismiss to clearing the failure only. Preserve
+this interaction uncertainty rather than claiming the dismissal/retry flow passed.
 
 ## Access observations and limits
 
