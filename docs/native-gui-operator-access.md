@@ -100,8 +100,14 @@ that exact existing host target. Do not invent a tailnet suffix or add a new pai
 
 `list` must include Desktop; the stream must render and accept input. The bootstrap runbook owns
 the existing tailnet-only forwarding and Sunshine recovery. Do not expose its Web UI or rotate
-pairing credentials for a GUI audit. The old Windows Quick Start's llvmpipe description predates
-the passthrough GPU and is not current renderer evidence.
+pairing credentials for a GUI audit. A shared QXL profile can use Mesa llvmpipe for Starsector;
+missing OpenGL acceleration is not proof that GPU passthrough is required. Inspect the retained
+Mesa shim at `C:\Games\Starsector\jre\bin\opengl32.mesa26.2.0.llvmpipe-disabled.dll` and its
+`libgallium_wgl.dll` dependency. The shim was disabled during the earlier passthrough setup.
+The legacy `Play-Starsector-VM.cmd` selects `GALLIUM_DRIVER=llvmpipe`, but a normal Preflight launch
+through `fr.bat` does not inherit that script's environment. Verify both the active OpenGL DLL
+and the environment of the actual launch. Keep the disabled shim backup and record any host
+environment change; neither a driver variable nor an old Quick Start proves the loaded renderer.
 
 The NSIS installer respects an existing installation directory, including old temporary lifecycle
 test directories. Verify the shortcut target, installed engine, and package hashes. For a durable
