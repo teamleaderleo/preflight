@@ -66,6 +66,12 @@ the actual Linux desktop. Keep the initial failed logs alongside the successful 
 
 ## Windows and Moonlight
 
+Inspect the current domain and the host repository's `docs/BIG_RED_WINDOWS_SHARED.md` before
+assuming Windows needs the GPU. The shared QXL/SPICE profile runs alongside Linux through
+`big-red-windows-desktop`; the older passthrough procedure below is a separate recovery path.
+The launcher classifies the domain and refuses a passthrough profile. Never infer the current
+profile from the VM name or an old screenshot.
+
 Discover the existing procedure first at
 `/home/leo/Projects/compute-node-bootstrap/docs/BIG_RED_WINDOWS_MOONLIGHT.md` on Big Red.
 `/home/leo/Windows-Restore/tools/winvm` owns guest command access. Its `run` command uses the
