@@ -21,26 +21,35 @@ final class DesktopHomeStateCommand {
     }
 
     static int execute(String[] args, int offset) throws Exception {
-        if (offset >= args.length || !"--game".equals(args[offset]) || offset + 2 != args.length) {
+        boolean metadataOnly = offset + 3 == args.length && "--metadata-only".equals(args[offset + 2]);
+        if (offset >= args.length || !"--game".equals(args[offset])
+                || (offset + 2 != args.length && !metadataOnly)) {
             throw new IllegalArgumentException(
-                    "Expected desktop bridge request: desktop home-state --game <path>");
+                    "Expected desktop bridge request: desktop home-state --game <path> [--metadata-only]");
         }
         Path installRoot = InstallRoot.resolve(Path.of(args[offset + 1]));
-        System.out.println(Json.object(read(PreflightHome.current(), installRoot)));
+        System.out.println(Json.object(read(PreflightHome.current(), installRoot, !metadataOnly)));
         return 0;
     }
 
     static Map<String, Object> read(PreflightHome home, Path installRoot) throws Exception {
-        ExecutorService reads = Executors.newFixedThreadPool(4, runnable -> {
+        return read(home, installRoot, true);
+    }
+
+    static Map<String, Object> read(PreflightHome home, Path installRoot, boolean includeCache) throws Exception {
+        ExecutorService reads = Executors.newFixedThreadPool(includeCache ? 4 : 3, runnable -> {
             Thread thread = new Thread(runnable, "preflight-desktop-home-read");
             thread.setDaemon(true);
             return thread;
         });
         try {
-            CompletableFuture<Result> cache = readAsync(reads, "cacheInspection", () ->
+            // Cache validation walks the asset tree. Do not hold settings and mod metadata
+            // behind that work (or its failure) during native GUI startup.
+            CompletableFuture<Result> cache = includeCache ? readAsync(reads, "cacheInspection", () ->
                     CacheCommand.inspect(
                             home,
-                            CacheCommand.currentProfile(installRoot, null, HOME_SCAN_WORKERS)));
+                            CacheCommand.currentProfile(installRoot, null, HOME_SCAN_WORKERS)))
+                    : CompletableFuture.completedFuture(new Result("cacheInspection", null, null));
             CompletableFuture<Result> profiles = readAsync(reads, "profiles", () ->
                     ProfileCommand.describeList(home, installRoot));
             CompletableFuture<Result> launchSettings = readAsync(reads, "launchSettings", () ->

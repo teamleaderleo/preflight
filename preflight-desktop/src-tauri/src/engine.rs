@@ -996,7 +996,8 @@ pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, Stri
         .arg("desktop")
         .arg("home-state")
         .arg("--game")
-        .arg(directory);
+        .arg(directory)
+        .arg("--metadata-only");
     let output = command
         .read_output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;

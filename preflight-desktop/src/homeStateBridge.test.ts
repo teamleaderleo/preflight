@@ -42,7 +42,7 @@ afterEach(() => {
   Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 });
 
-test("the first home reads share one engine process", async () => {
+test("metadata reads share one engine process while cache validation is independent", async () => {
   const state: DesktopHomeState = {
     format: "starsector-preflight-desktop-home-state-v1",
     installRoot: "/game",
@@ -52,7 +52,8 @@ test("the first home reads share one engine process", async () => {
     modReadiness,
     errors: {},
   };
-  vi.mocked(invoke).mockResolvedValue(state);
+  vi.mocked(invoke).mockImplementation((command) =>
+    Promise.resolve(command === "get_cache_inspection" ? cacheInspection : state) as never);
   const bridge = await import("./bridge");
 
   await expect(Promise.all([
@@ -62,7 +63,8 @@ test("the first home reads share one engine process", async () => {
     bridge.getModReadiness("/game"),
   ])).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
 
-  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenCalledWith("get_cache_inspection", { game: "/game" });
   expect(invoke).toHaveBeenCalledWith("get_home_state", { game: "/game" });
 });
 
@@ -81,7 +83,8 @@ test("installation confirmation does not wait for heavier Home data", async () =
   } as DesktopSnapshot;
   const pendingHome = deferred<DesktopHomeState>();
   vi.mocked(invoke).mockImplementation((command) =>
-    (command === "get_snapshot" ? Promise.resolve(snapshot) : pendingHome.promise) as never);
+    (command === "get_snapshot" ? Promise.resolve(snapshot)
+      : command === "get_cache_inspection" ? Promise.resolve(cacheInspection) : pendingHome.promise) as never);
   const bridge = await import("./bridge");
 
   await expect(bridge.getBootstrapSnapshot()).resolves.toBe(snapshot);
@@ -96,7 +99,7 @@ test("installation confirmation does not wait for heavier Home data", async () =
   pendingHome.resolve(state);
   await expect(home).resolves.toEqual([cacheInspection, profiles, launchSettings, modReadiness]);
 
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(invoke).toHaveBeenCalledTimes(3);
   expect(invoke).toHaveBeenCalledWith("get_home_state", { game: "/game" });
 });
 
@@ -155,9 +158,8 @@ test("later refreshes keep their narrow read contracts", async () => {
     modReadiness,
     errors: {},
   };
-  vi.mocked(invoke)
-    .mockResolvedValueOnce(state)
-    .mockResolvedValueOnce(cacheInspection);
+  vi.mocked(invoke).mockImplementation((command) =>
+    Promise.resolve(command === "get_cache_inspection" ? cacheInspection : state) as never);
   const bridge = await import("./bridge");
   await Promise.all([
     bridge.getCacheInspection("/game"),
@@ -181,8 +183,43 @@ test("a failed family reports its own reason", async () => {
     modReadiness,
     errors: { profiles: "enabled_mods.json is unreadable" },
   };
-  vi.mocked(invoke).mockResolvedValue(state);
+  vi.mocked(invoke).mockImplementation((command) =>
+    Promise.resolve(command === "get_cache_inspection" ? cacheInspection : state) as never);
   const bridge = await import("./bridge");
 
   await expect(bridge.getProfiles("/broken")).rejects.toThrow("enabled_mods.json is unreadable");
+});
+
+
+test("settings and mod readiness resolve while the asset scan is still pending", async () => {
+  const pendingCache = deferred<CacheInspection>();
+  const state: DesktopHomeState = {
+    format: "starsector-preflight-desktop-home-state-v1",
+    installRoot: "/game", cacheInspection: null, profiles, launchSettings, modReadiness, errors: {},
+  };
+  vi.mocked(invoke).mockImplementation((command) =>
+    (command === "get_cache_inspection" ? pendingCache.promise : Promise.resolve(state)) as never);
+  const bridge = await import("./bridge");
+  let cacheResolved = false;
+  const cache = bridge.getCacheInspection("/game").then((value) => { cacheResolved = true; return value; });
+  await expect(Promise.all([
+    bridge.getLaunchSettings("/game"), bridge.getProfiles("/game"), bridge.getModReadiness("/game"),
+  ])).resolves.toEqual([launchSettings, profiles, modReadiness]);
+  expect(cacheResolved).toBe(false);
+  pendingCache.resolve(cacheInspection);
+  await expect(cache).resolves.toBe(cacheInspection);
+});
+
+test("an asset-scan failure does not discard settings or mod readiness", async () => {
+  const state: DesktopHomeState = {
+    format: "starsector-preflight-desktop-home-state-v1",
+    installRoot: "/game", cacheInspection: null, profiles, launchSettings, modReadiness, errors: {},
+  };
+  vi.mocked(invoke).mockImplementation((command) =>
+    (command === "get_cache_inspection" ? Promise.reject(new Error("Asset scan timed out"))
+      : Promise.resolve(state)) as never);
+  const bridge = await import("./bridge");
+  await expect(bridge.getCacheInspection("/game")).rejects.toThrow("Asset scan timed out");
+  await expect(bridge.getLaunchSettings("/game")).resolves.toBe(launchSettings);
+  await expect(bridge.getModReadiness("/game")).resolves.toBe(modReadiness);
 });

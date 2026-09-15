@@ -72,6 +72,15 @@ assuming Windows needs the GPU. The shared QXL/SPICE profile runs alongside Linu
 The launcher classifies the domain and refuses a passthrough profile. Never infer the current
 profile from the VM name or an old screenshot.
 
+Windows desktop tests are silent by default at the maintainer's request. On September 15 the
+shared domain's audio backend was changed from `spice` to `none` while Windows was shut off;
+the sound device remains present, but QEMU discards its output instead of sending it to the
+viewer, Linux speakers, or the Mac's RDP playback. This preserves the game's sound-processing
+setting for test comparability. Original and silent domain XML are retained on Big Red under
+`/home/leo/Projects/preflight/benchmark-results/windows-audio-20260915/`. Check the inactive XML
+after replacing a domain definition. A separate Sunshine/Moonlight audio-capture path would need
+its own check; this setting governs the current shared QXL/SPICE route.
+
 Discover the existing procedure first at
 `/home/leo/Projects/compute-node-bootstrap/docs/BIG_RED_WINDOWS_MOONLIGHT.md` on Big Red.
 `/home/leo/Windows-Restore/tools/winvm` owns guest command access. Its `run` command uses the
@@ -115,39 +124,18 @@ operator installation, the tested explicit destination is `%LOCALAPPDATA%\Progra
 use the installer's `/S` and final `/D=...` arguments, wait for its exit, and verify the resulting
 files before launching. Keep failed attempts rather than assigning them successful evidence.
 
-## Shared GPU handover
+## GPU ownership and recovery
 
-The VM and Linux desktop share PCI `0000:00:02.0`. Inspect the live domain XML, device driver,
-GDM state, and `/etc/libvirt/hooks/qemu` before acting. The inspected hook manages CPU allocation
-only; it does not stop GDM. Persistent VFIO boot configuration is separate from a runtime handover.
-Do not reboot while depending on the Linux desktop, and do not change boot configuration for an audit.
+Keep `0000:00:02.0` on Linux's i915 driver for the shared Windows desktop. Do not detach live
+i915, stop GDM, or introduce GPU passthrough for Preflight startup testing. The September 6
+live-handover procedure is historical evidence and was superseded after the later kernel crash;
+it is not an operator recipe. Preserve the installed GPU guard and crash evidence.
 
-Before handing Linux's GPU to Windows, close test GUI/game processes and verify no game remains.
-Keep SSH available. The runtime sequence exercised from Linux mode is:
-
-```sh
-sudo -n systemctl stop gdm
-sudo -n virsh -c qemu:///system nodedev-detach pci_0000_00_02_0 --driver vfio-pci
-virsh -c qemu:///system start win11-starsector
-```
-
-Verify `domstate` is running and `/sys/bus/pci/devices/0000:00:02.0/driver` resolves to `vfio-pci`
-before using guest access. Linux RDP is unavailable while Windows owns the GPU.
-
-For return, request guest shutdown and verify the VM is **shut off** before rebinding anything.
-Inspect the resulting driver rather than assuming libvirt restored Linux ownership. The prior
-Linux handback used `i915`; this kernel declined `xe` without force-probe. Do not force another
-driver. Start GDM only after `i915` owns the device and verify desktop access again. Preserve the
-exact handback receipt with the dated audit.
-
-The verified handback on 2026-09-06 used `virsh -c qemu:///system shutdown win11-starsector
---mode agent`. After a separate `domstate` check returned `shut off`, the device still had a
-`vfio-pci` driver and override. As root, write `i915` to the device's `driver_override`, write
-`0000:00:02.0` to its current `driver/unbind`, load `i915` with `modprobe`, then write
-`0000:00:02.0` to `/sys/bus/pci/drivers_probe`. Verify the device's `driver` symlink resolves to
-`i915` before `systemctl start gdm`. These are runtime sysfs writes; repeat the state checks before
-using this sequence, and never unbind a device still owned by a running VM. SSH and the saved RDP
-route were verified again after this handback.
+Before any separate recovery work, inspect the live domain and current procedures in
+`/home/leo/Projects/compute-node-bootstrap`. A read-only observer may report ownership and client
+conditions but cannot establish that live detachment is safe. Any reboot-based VFIO work is a
+separate task; do not begin it as part of a GUI audit. Normal cleanup closes the owned viewer and
+shuts down only the Windows guest, leaving Linux, SSH, and Tailscale available.
 
 ## Evidence contracts
 
