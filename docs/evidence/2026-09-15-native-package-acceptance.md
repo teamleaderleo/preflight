@@ -44,13 +44,25 @@ prepared audio served 2049 of 2050 decodes. A performance-regression conclusion 
 
 Linux: installed the DEB, opened the native app in an owned transient service, and exercised
 Settings → Change folder → Home/Games → starsector-0.98a-RC8 → Open → Home Ready.
-No Linux game was launched. This closes the previously unverified picker interaction for these
-package bytes. Full Linux settings persistence/game lifecycle acceptance remains incomplete.
+This closes the previously unverified picker interaction for these package bytes.
+After reconnecting RDP, native settings read 2048×1280, fullscreen on, sound off,
+8 GB memory, 100% UI, antialiasing off, battle size 400. Applied battle size 401, observed
+“Global game settings applied and verified,” restarted the app, and read 401 in Home Options.
+Restored 400 through Apply, verified success, then reopened through the GNOME desktop launcher
+and read 400. Other game settings were unchanged.
+Then launched from the GNOME desktop application scope (not the transient test service).
+Run `20260915-053438-800-5355306f`, PID 2503422, reached main-menu-interactive in 29.865 seconds
+on the established clock. This is one functional observation with the shared Windows VM also
+running. The larger game resolution was cropped by the RDP view; the visible title/background
+rendered, but this is not complete display-fidelity acceptance. Clicked Preflight's native
+Stop Starsector button, observed Ready, and verified USER_STOPPED, exit 0, no postprocessing
+failures, and the game PID absent. Close/reopen while the game runs and full display acceptance
+remain separate unchecked lifecycle cases.
 
 Windows: current shared-display VM booted and its desktop was visible through SPICE inside the
 Linux RDP session. No GPU handover was used; Linux retained i915. This establishes access, not
-acceptance of the new Windows package. The Linux session subsequently locked, and the saved
-Windows Moonlight route failed to connect; remaining native Windows interaction was blocked.
+acceptance of the new Windows package. The RDP view subsequently went black, and the saved
+Windows Moonlight route failed to connect. Reconnecting later restored the RDP picture.
 
 ## Build failure and repair
 
@@ -76,7 +88,10 @@ the installed shared-display launcher verifies that classification before starti
 RDP initially failed with `Unknown monitor`; Mutter reported no active monitors. Restarting
 remote-desktop alone did not fix it. Temporarily changing screen-share-mode from mirror-primary
 to extend enabled the native Linux view. Later black captures coincided with PowerSaveMode 3
-and an active session lock. Do not bypass that lock or count black captures as app failures.
+and ScreenSaver.GetActive=true for leo; that did not establish that the physical desktop was
+locked. A fresh check found the physical family Wayland session active with LockedHint=no,
+and leo's screensaver inactive. These are separate GNOME sessions. Reconnecting restored the
+leo RDP picture without unlocking anything. Do not count black captures as app failures.
 
 Local raw logs, failed observations, package identities, and recovery state are retained under
 `benchmark-results/package-acceptance-20260915/`; corresponding Linux build logs remain under
