@@ -66,17 +66,28 @@ the actual Linux desktop. Keep the initial failed logs alongside the successful 
 
 ## Windows and Moonlight
 
+Inspect the current domain and the host repository's `docs/BIG_RED_WINDOWS_SHARED.md` before
+assuming Windows needs the GPU. The shared QXL/SPICE profile runs alongside Linux through
+`big-red-windows-desktop`; the older passthrough procedure below is a separate recovery path.
+The launcher classifies the domain and refuses a passthrough profile. Never infer the current
+profile from the VM name or an old screenshot.
+
 Discover the existing procedure first at
 `/home/leo/Projects/compute-node-bootstrap/docs/BIG_RED_WINDOWS_MOONLIGHT.md` on Big Red.
 `/home/leo/Windows-Restore/tools/winvm` owns guest command access. Its `run` command uses the
 existing guest SSH key and discovers the address through libvirt; do not copy the key or guess an IP.
-**`winvm run`, `open`, and some other commands can start the VM. Use them only after GPU handover.**
+**`winvm run`, `open`, and some other commands can start the VM.** For the shared profile,
+first classify and start it with the guarded shared-display launcher above. For passthrough,
+follow the host's current GPU procedure before using these commands; never detach live i915.
 `winvm status` and `virsh -c qemu:///system domstate win11-starsector` inspect state.
 
 The checked Windows checkout is `C:\Users\Leo\Projects\preflight`; another checkout exists at
 `C:\Projects\starsector-preflight`, so verify the intended path and SHA. The game is
-`C:\Games\Starsector`. `Z:\` maps to `/home/leo/Windows-Share`; use it for exchange, not live source
-or game files. `winvm run hostname` verifies the existing SSH route before claiming it works.
+`C:\Games\Starsector`. Discover the exchange share from the current domain XML and guest volume
+mapping: the September 15 shared profile used `Z:\` backed by
+`/var/lib/libvirt/shares/win11-starsector`, rather than the older `/home/leo/Windows-Share`.
+Use it for exchange, not live source or game files.
+`winvm run hostname` verifies the existing SSH route before claiming it works.
 
 For Moonlight, read Big Red's current `Self.DNSName` from `tailscale status --json` over SSH and use
 that exact existing host target. Do not invent a tailnet suffix or add a new pairing. On the Mac:
