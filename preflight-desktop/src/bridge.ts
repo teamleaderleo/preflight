@@ -294,13 +294,13 @@ interface HomeStateFlight {
   claimed: Set<HomeStateField>;
 }
 
-type HomeStateField = "cacheInspection" | "profiles" | "launchSettings" | "modReadiness";
+type HomeStateField = "profiles" | "launchSettings" | "modReadiness";
 
 let homeStateFlight: HomeStateFlight | null = null;
 const homeStateBootstrapped = new Set<string>();
 let bootstrapFlight: BootstrapFlight | null = null;
 
-/** Confirm the installation first; Home shares one deferred request for its heavier data. */
+/** Confirm the installation first; Home shares one metadata request; cache validation runs independently. */
 export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) return getSnapshot(game);
   const expectedGame = game ?? null;
@@ -333,7 +333,7 @@ function firstHomeStateField<K extends HomeStateField>(
   const flight = homeStateFlight;
   if (flight.claimed.has(field)) return null;
   flight.claimed.add(field);
-  if (flight.claimed.size === 4) homeStateBootstrapped.add(game);
+  if (flight.claimed.size === 3) homeStateBootstrapped.add(game);
   return flight.promise.then((state) => {
     const value = state[field];
     if (value === null) throw new Error(state.errors[field] ?? `Preflight couldn't read ${field}.`);
@@ -633,8 +633,6 @@ export async function getCacheInspection(game: string): Promise<CacheInspection>
       health,
     };
   }
-  const first = firstHomeStateField(game, "cacheInspection");
-  if (first) return first;
   return invoke<CacheInspection>("get_cache_inspection", { game });
 }
 

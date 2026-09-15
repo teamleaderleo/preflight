@@ -38,6 +38,13 @@ final class DesktopHomeStateCommandTest {
         assertNotNull(state.get("launchSettings"));
         assertNotNull(state.get("modReadiness"));
         assertEquals(Map.of(), state.get("errors"));
+
+        Map<String, Object> metadata = DesktopHomeStateCommand.read(home, game, false);
+        assertNull(metadata.get("cacheInspection"));
+        assertEquals(state.get("launchSettings"), metadata.get("launchSettings"));
+        assertNotNull(metadata.get("profiles"));
+        assertNotNull(metadata.get("modReadiness"));
+        assertEquals(Map.of(), metadata.get("errors"));
     }
 
     @Test

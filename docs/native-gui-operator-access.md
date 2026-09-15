@@ -72,6 +72,15 @@ assuming Windows needs the GPU. The shared QXL/SPICE profile runs alongside Linu
 The launcher classifies the domain and refuses a passthrough profile. Never infer the current
 profile from the VM name or an old screenshot.
 
+Windows desktop tests are silent by default at the maintainer's request. On September 15 the
+shared domain's audio backend was changed from `spice` to `none` while Windows was shut off;
+the sound device remains present, but QEMU discards its output instead of sending it to the
+viewer, Linux speakers, or the Mac's RDP playback. This preserves the game's sound-processing
+setting for test comparability. Original and silent domain XML are retained on Big Red under
+`/home/leo/Projects/preflight/benchmark-results/windows-audio-20260915/`. Check the inactive XML
+after replacing a domain definition. A separate Sunshine/Moonlight audio-capture path would need
+its own check; this setting governs the current shared QXL/SPICE route.
+
 Discover the existing procedure first at
 `/home/leo/Projects/compute-node-bootstrap/docs/BIG_RED_WINDOWS_MOONLIGHT.md` on Big Red.
 `/home/leo/Windows-Restore/tools/winvm` owns guest command access. Its `run` command uses the
