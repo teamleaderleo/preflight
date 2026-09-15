@@ -80,3 +80,8 @@ inference now has explicit state, and the planning/readiness paths wait until th
 has settled. Fastest, Compact, and Minimal restoration are covered; actual cold-profile planning
 and delayed Speed-page planning retain their existing tests. The first app was closed before
 rebuilding. No game was launched.
+
+The first follow-up CI run (`34961002305`) caught the same pre-inference scheduling window in
+Compact maintenance: its existing cancellation test saw two timers queued instead of one.
+Maintenance now shares the inference gate. All 25 focused preparation/recovery/fencing tests
+passed afterward; the failed CI run remains preserved.

@@ -478,6 +478,7 @@ export function usePreparation(
       || preparing
       || cacheRepairing
       || preparationPlanLoading
+      || storageInferencePending
       || !canGraduateToCompact(currentCacheHealth)) return;
     const attempt = `${game}\0${profile}\0${automaticCompactionGeneration}`;
     if (automaticCompactAttempts.current.has(attempt)) return;
@@ -495,6 +496,7 @@ export function usePreparation(
     game,
     preparationPlanLoading,
     preparing,
+    storageInferencePending,
   ]);
 
   const repairAndPrepare = async (launchWhenReady = false) => {
