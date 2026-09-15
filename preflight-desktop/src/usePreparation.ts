@@ -137,7 +137,7 @@ export function usePreparation(
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const automaticCompactAttempts = useRef(new Set<string>());
-  const inferredTextureStorageForGame = useRef<string | null>(null);
+  const [inferredTextureStorageForGame, setInferredTextureStorageForGame] = useState<string | null>(null);
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -276,11 +276,11 @@ export function usePreparation(
   const currentCacheHealth = cacheInstallRoot === game ? cacheHealth : null;
   useEffect(() => {
     if (!game) {
-      inferredTextureStorageForGame.current = null;
+      setInferredTextureStorageForGame(null);
       return;
     }
-    if (inferredTextureStorageForGame.current === game || currentCacheHealth?.status !== "ready") return;
-    inferredTextureStorageForGame.current = game;
+    if (inferredTextureStorageForGame === game || currentCacheHealth?.status !== "ready") return;
+    setInferredTextureStorageForGame(game);
     if (currentCacheHealth.preparedTextures === false) {
       setTextureStorage("minimal");
     } else if (currentCacheHealth.textureStorage === "balanced"
@@ -289,7 +289,11 @@ export function usePreparation(
     } else if (currentCacheHealth.textureStorage === "fastest") {
       setTextureStorage("fastest");
     }
-  }, [currentCacheHealth, game]);
+  }, [currentCacheHealth, game, inferredTextureStorageForGame]);
+  // The cache can arrive before its saved storage mode has been adopted. Wait for
+  // that state update before planning against the default mode or showing it as cold.
+  const storageInferencePending = currentCacheHealth?.status === "ready"
+    && inferredTextureStorageForGame !== game;
   const profilePrepared = isCurrentProfilePrepared(currentCache, textureStorage)
     && preparationModeMatchesStorage(currentCacheHealth, textureStorage);
   const resources = resourcePresets[resourcePreset];
@@ -302,7 +306,7 @@ export function usePreparation(
     : null;
 
   useEffect(() => {
-    const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
+    const cacheReady = game && cacheInstallRoot === game && !cacheLoading && !storageInferencePending;
     const shouldPlan = cacheReady
       && optimizationPreset !== "off"
       && storagePlanApplies(textureStorage)
@@ -350,7 +354,7 @@ export function usePreparation(
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, preparationPlan, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
+  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, preparationPlan, profilePrepared, resources.workers, showStoragePlan, storageInferencePending, textureStorage]);
 
   const runPreparation = async (
     launchWhenReady = false,
@@ -474,6 +478,7 @@ export function usePreparation(
       || preparing
       || cacheRepairing
       || preparationPlanLoading
+      || storageInferencePending
       || !canGraduateToCompact(currentCacheHealth)) return;
     const attempt = `${game}\0${profile}\0${automaticCompactionGeneration}`;
     if (automaticCompactAttempts.current.has(attempt)) return;
@@ -491,6 +496,7 @@ export function usePreparation(
     game,
     preparationPlanLoading,
     preparing,
+    storageInferencePending,
   ]);
 
   const repairAndPrepare = async (launchWhenReady = false) => {
@@ -735,7 +741,7 @@ export function usePreparation(
   return {
     cache: currentCache,
     cacheHealth: currentCacheHealth,
-    cacheLoading,
+    cacheLoading: cacheLoading || storageInferencePending,
     cacheRepairing,
     preparationCancelling,
     preparationPercent,

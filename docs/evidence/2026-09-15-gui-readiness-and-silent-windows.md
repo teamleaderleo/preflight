@@ -45,3 +45,43 @@ current QEMU/SPICE route, including audio that could otherwise reach the Linux v
 playback. Game sound-processing settings were preserved. This is configuration verification, not
 an acoustic playback test or a verification of a separate Sunshine capture path. See the native
 operator access guide for the backup location and scope.
+
+## Combined-read follow-up and checks
+
+A subsequent full request took 4.689 s. With metadata and cache requests started together,
+metadata returned in 1.928 s, cache in 3.852 s, and both finished in 3.866 s. All exited 0.
+This single busy-Mac pair checks the complete backend dependency set, including the cost of the
+second JVM; it is still not a rendered-window startup measurement. The raw comparison is
+`benchmark-results/gui-readiness-20260915/combined-comparison.json`.
+
+[PR #1325](https://github.com/teamleaderleo/preflight/pull/1325) merged as `828d8c0b` after all
+checks passed, including all three native package jobs in
+[Desktop CI 34958095845](https://github.com/teamleaderleo/preflight/actions/runs/34958095845).
+Locally, 519 frontend tests passed; the focused Java unit tests and CLI integration reactor passed
+(57 CLI integration tests, 5 platform/opt-in skips). Rust formatting and the reviewed capability
+source digest passed. No timeout was extended and #1323 remains open for its original cause.
+
+Moonlight's existing “Mute host PC speakers while streaming” setting was already enabled. Enabled
+“Mute audio stream when Moonlight is not the active window”; reopening its settings confirmed the
+checked value. This is a global Moonlight preference, including its Linux tile. It does not promise
+silence for a focused Moonlight stream; the disabled QEMU backend governs the current shared
+Windows/SPICE route. No Moonlight stream was started, and Moonlight was closed afterward.
+
+## Redundant startup preparation plan
+
+The first updated Mac app reached Ready, but its process tree exposed an unnecessary
+`prepare --plan --texture-storage balanced --workers 4` child. The installed profile was already
+ready with `textureStorage=balanced, textureScope=learned` (Compact). Cache arrival rendered once
+with the default Balanced mode; the storage-inference effect queued Compact, while the planning
+effect from that same render still started a Balanced estimate.
+
+A regression test failed on the old hook with exactly one unwanted Balanced plan call. Storage
+inference now has explicit state, and the planning/readiness paths wait until that state update
+has settled. Fastest, Compact, and Minimal restoration are covered; actual cold-profile planning
+and delayed Speed-page planning retain their existing tests. The first app was closed before
+rebuilding. No game was launched.
+
+The first follow-up CI run (`34961002305`) caught the same pre-inference scheduling window in
+Compact maintenance: its existing cancellation test saw two timers queued instead of one.
+Maintenance now shares the inference gate. All 25 focused preparation/recovery/fencing tests
+passed afterward; the failed CI run remains preserved.
