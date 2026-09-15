@@ -60,8 +60,8 @@ failures, and the game PID absent. Close/reopen while the game runs and full dis
 remain separate unchecked lifecycle cases.
 
 Windows: current shared-display VM booted and its desktop was visible through SPICE inside the
-Linux RDP session. No GPU handover was used; Linux retained i915. This establishes access, not
-acceptance of the new Windows package. The RDP view subsequently went black, and the saved
+Linux RDP session. No GPU handover was used; Linux retained i915. Package-specific findings are
+recorded below. The RDP view subsequently went black, and the saved
 Windows Moonlight route failed to connect. Reconnecting later restored the RDP picture.
 
 ## Build failure and repair
@@ -146,6 +146,13 @@ Local raw logs, failed observations, package identities, and recovery state are 
 `benchmark-results/package-acceptance-20260915/`; corresponding Linux build logs remain under
 the same relative directory on Big Red. Native screenshots/accessibility observations are in the
 operator conversation. Browser preview evidence from #1317/#1318 is separate.
+
+Cleanup verified: Windows VM shut off; i915 still owns the GPU; GDM active; both owned Linux
+GUI/viewer services inactive; no test Preflight/game processes remain. Closed the Mac RDP client
+and restored leo's original `mirror-primary` screen-share mode, restarting only its user remote
+desktop service. Removed the temporary Windows exchange directory. The mixed Windows installation
+is deliberately retained as #1321 evidence; the installed application is the clean verified copy.
+Local and Linux disposable build outputs were pruned. Game settings were restored on all platforms.
 
 The live release board still requires a selected/tagged generation, native Windows/Linux game
 acceptance, package-bound lifecycle/update evidence, the report upload cancel/retry/delete canary,
