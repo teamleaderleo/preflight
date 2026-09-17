@@ -39,6 +39,7 @@ export function BenchmarkPage({
   onOpenHelp,
 }: BenchmarkPageProps) {
   const [benchmarkCopyState, setBenchmarkCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [benchmarkCopyText, setBenchmarkCopyText] = useState<string | null>(null);
   const {
     desktopSmokeProbe,
     desktopSmokeProbeBusy,
@@ -64,14 +65,18 @@ export function BenchmarkPage({
   const hasCampaignSmoothness = Boolean(
     stutterBurden || repeatedSlowFrames || slowFramesPerMinute || onePercentLow,
   );
-  const copyBenchmarkResult = async () => {
-    if (!benchmarkMetric) return;
+  const copyBenchmarkText = async (text: string) => {
+    setBenchmarkCopyText(text);
     try {
-      await navigator.clipboard.writeText(createBenchmarkShareText(benchmarkMetric));
+      await navigator.clipboard.writeText(text);
       setBenchmarkCopyState("copied");
     } catch {
       setBenchmarkCopyState("error");
     }
+  };
+  const copyBenchmarkResult = async () => {
+    if (!benchmarkMetric) return;
+    await copyBenchmarkText(createBenchmarkShareText(benchmarkMetric));
   };
   const benchmarkCopied = benchmarkCopyState === "copied";
   return (
@@ -104,6 +109,7 @@ export function BenchmarkPage({
               type="button"
               onClick={() => {
                 setBenchmarkCopyState("idle");
+                setBenchmarkCopyText(null);
                 if (desktopSmokeProbe?.probe.ready) void runDesktopAutomation();
                 else void checkDesktopAutomation(true);
               }}
@@ -160,11 +166,15 @@ export function BenchmarkPage({
             </>
           ) : null}
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
-          {benchmarkCopyState === "copied"
-            ? <small aria-live="polite">Benchmark result copied.</small>
-            : benchmarkCopyState === "error"
-              ? <small aria-live="polite">Couldn’t copy the benchmark result.</small>
-              : null}
+          {benchmarkCopyState === "copied" ? <small aria-live="polite">Benchmark result copied.</small> : null}
+          {benchmarkCopyState === "error" && benchmarkCopyText ? (
+            <div className="report-recovery" role="alert">
+              <strong>Clipboard access failed</strong>
+              <p>The benchmark result is still available below. Select and copy it manually, or retry the same result.</p>
+              <textarea aria-label="Copy benchmark result" readOnly rows={5} value={benchmarkCopyText} />
+              <button className="button button--quiet button--compact" type="button" onClick={() => void copyBenchmarkText(benchmarkCopyText)}>Try clipboard again</button>
+            </div>
+          ) : null}
           <small>The saved result includes the game and mod versions plus raw timings.</small>
         </section>
       ) : null}
