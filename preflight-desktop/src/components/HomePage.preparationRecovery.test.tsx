@@ -166,7 +166,7 @@ test("known progress follows the actual completion intent instead of implying a 
   const view = renderHome({ ...preparation, preparationPercent: 71 }, true);
 
   expect(screen.getByText(/Textures · Launch from Home when preparation finishes\./)).toBeInTheDocument();
-  expect(document.body).not.toHaveTextContent("Starsector opens when preparation finishes.");
+  expect(document.body).not.toHaveTextContent("Starsector opens when it’s ready.");
 
   view.rerender(<HomePage
     snapshot={snapshot}
@@ -205,7 +205,7 @@ test("known progress follows the actual completion intent instead of implying a 
     launchProfileName="Exploration"
     modReadiness={null}
   />);
-  expect(screen.getByText(/Textures · Starsector opens when preparation finishes\./)).toBeInTheDocument();
+  expect(screen.getByText(/Textures · Starsector opens when it’s ready\./)).toBeInTheDocument();
 });
 
 test("Home shows the active stage instead of treating unequal stages as a work percentage", () => {
