@@ -738,6 +738,7 @@ export function usePreparation(
     cacheLoading,
     cacheRepairing,
     preparationCancelling,
+    preparationCompletionIntent: launchAfterPreparation.current ? "launch" as const : "stay-closed" as const,
     preparationPercent,
     preparationPhaseLabel,
     preparationPlan,

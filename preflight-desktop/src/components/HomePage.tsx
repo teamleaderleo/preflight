@@ -450,8 +450,8 @@ export function HomePage({
             <div className="launch-console__note">
               <span>{preparing
                 ? preparationPercent === null
-                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Resumed. Starsector stays closed when this finishes.`
-                  : `${preparationPhaseLabel ?? "Preparing"} · Starsector opens when it’s ready.`
+                  ? `${preparationPhaseLabel ?? "Preparation continues"} · Resumed. ${preparation.preparationCompletionIntent === "launch" ? "Starsector opens when it’s ready." : "Launch from Home when preparation finishes."}`
+                  : `${preparationPhaseLabel ?? "Preparing"} · ${preparation.preparationCompletionIntent === "launch" ? "Starsector opens when it’s ready." : "Launch from Home when preparation finishes."}`
                 : cacheNeedsRepair
                   ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
                 : needsPreparation

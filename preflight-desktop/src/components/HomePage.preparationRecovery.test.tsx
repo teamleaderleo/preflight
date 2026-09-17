@@ -89,6 +89,7 @@ const preparation = {
   cacheLoading: false,
   cacheRepairing: false,
   preparationCancelling: false,
+  preparationCompletionIntent: "stay-closed",
   preparationPercent: null,
   preparationPhaseLabel: "Textures",
   preparationPlan: null,
@@ -157,8 +158,54 @@ test("Home explains a preparation recovered after restart without inventing a pe
   expect(screen.getByText("Preparation in progress")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Preparation in progress…" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
-  expect(screen.getByText(/Resumed\. Starsector stays closed/)).toBeInTheDocument();
+  expect(screen.getByText(/Resumed\. Launch from Home when preparation finishes\./)).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("0%");
+});
+
+test("known progress follows the actual completion intent instead of implying a launch", () => {
+  const view = renderHome({ ...preparation, preparationPercent: 71 }, true);
+
+  expect(screen.getByText(/Textures · Launch from Home when preparation finishes\./)).toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent("Starsector opens when it’s ready.");
+
+  view.rerender(<HomePage
+    snapshot={snapshot}
+    status="ready"
+    message=""
+    messageTone="info"
+    isReady
+    needsPreparation
+    optimizationPreset="recommended"
+    preparation={{ ...preparation, preparationPercent: 71, preparationCompletionIntent: "launch" } as ReturnType<typeof usePreparation>}
+    updateStatus={null}
+    launcherSettings={null}
+    launcherDraft={null}
+    launcherSettingsLoading={false}
+    launcherSettingsSaving={false}
+    launchSettingsDirty={false}
+    operationBlocked
+    launchSettingsEditingBlocked={false}
+    launchSettingsSaveBlocked={false}
+    theme="light"
+    onLauncherChange={vi.fn()}
+    onChooseInstall={vi.fn()}
+    onPrimaryLaunch={vi.fn()}
+    onLaunchWithoutPreparing={vi.fn()}
+    onRestoreRecommended={vi.fn()}
+    stoppingGame={false}
+    forceStopAvailable={false}
+    onStopGame={vi.fn()}
+    onSaveLauncherSettings={vi.fn()}
+    retryLabel="Try again"
+    onRetry={vi.fn()}
+    runFailure={null}
+    onDismissRunFailure={vi.fn()}
+    onNavigate={vi.fn()}
+    instrumentHull={hullState}
+    launchProfileName="Exploration"
+    modReadiness={null}
+  />);
+  expect(screen.getByText(/Textures · Starsector opens when it’s ready\./)).toBeInTheDocument();
 });
 
 test("Home shows the active stage instead of treating unequal stages as a work percentage", () => {
