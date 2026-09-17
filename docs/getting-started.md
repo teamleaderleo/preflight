@@ -11,7 +11,7 @@ install Preflight
       ↓
 let it find Starsector
       ↓
-Prepare and launch once
+Set up and launch
       ↓
 Launch Starsector normally after that
 ```
@@ -38,9 +38,9 @@ Preflight starts from the mods you already have enabled. Setup doesn't install o
 
 ![Preflight asking for a Starsector installation](images/walkthrough-setup.png)
 
-### 2. Prepare and launch
+### 2. Set up and launch
 
-Use **Prepare and launch** the first time.
+Use **Set up and launch** the first time.
 
 Before writing prepared data, Preflight calculates the current profile's disk requirement. If the normal preparation doesn't fit with its reserve, the app can offer a smaller storage option.
 

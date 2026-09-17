@@ -1,6 +1,7 @@
 import { RefreshIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { shortPath } from "../uiFormat";
+import { BattleSizeInput } from "./BattleSizeInput";
 import { GameMemorySelect } from "./GameMemorySelect";
 import { battleSizePresets, battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
 import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
@@ -91,7 +92,14 @@ export function GameSettingsPage({
           <div className="card__heading"><div><h2>Battle and memory</h2></div></div>
           <label className="setting-field" htmlFor="launch-battle-size">
             <span><strong>Battle size</strong></span>
-            <input id="launch-battle-size" aria-label="Battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
+            <BattleSizeInput
+              id="launch-battle-size"
+              label="Battle size"
+              value={draft.battleSize}
+              min={settings.limits.battleSizeMin ?? 1}
+              max={battleSizeUpperBound(settings, draft.battleSize)}
+              onCommit={(battleSize) => onChange({ battleSize })}
+            />
           </label>
           <div className="battle-presets" role="group" aria-label="Battle size presets">
             {battleSizePresets(settings).map((preset) => (

@@ -1,5 +1,6 @@
 import { ArrowIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
+import { BattleSizeInput } from "./BattleSizeInput";
 import { GameMemorySelect } from "./GameMemorySelect";
 import { battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
 import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
@@ -42,7 +43,15 @@ export function QuickGameSettings({
         </div>
         <label className="quick-control quick-control--battle-size" htmlFor="home-battle-size">
           <span>Battle size</span>
-          <input id="home-battle-size" aria-label="Home battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} disabled={editingDisabled} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
+          <BattleSizeInput
+            id="home-battle-size"
+            label="Home battle size"
+            value={draft.battleSize}
+            min={settings.limits.battleSizeMin ?? 1}
+            max={battleSizeUpperBound(settings, draft.battleSize)}
+            disabled={editingDisabled}
+            onCommit={(battleSize) => onChange({ battleSize })}
+          />
         </label>
         <label className={`quick-control quick-control--memory ${settings.memory.editable ? "" : "quick-control--read-only"}`} htmlFor={settings.memory.editable ? "home-memory" : undefined}>
           <span>RAM</span>
