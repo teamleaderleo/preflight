@@ -3,6 +3,8 @@ import { checkSetup } from "./bridge";
 import type { Announce, SetupAnalysisResult } from "./types";
 import { errorMessage } from "./uiFormat";
 
+export type SetupCheckAttemptStatus = "idle" | "running" | "successful" | "failed";
+
 export function useSetupCheck(
   game: string | undefined,
   currentSetupKey: string,
@@ -10,6 +12,8 @@ export function useSetupCheck(
 ) {
   const [result, setResult] = useState<SetupAnalysisResult | null>(null);
   const [checking, setChecking] = useState(false);
+  const [status, setStatus] = useState<SetupCheckAttemptStatus>("idle");
+  const [error, setError] = useState<string | null>(null);
   const checkingRef = useRef(false);
   const request = useRef(0);
   const inFlightRequest = useRef(0);
@@ -23,14 +27,20 @@ export function useSetupCheck(
     inFlightRequest.current = currentRequest;
     checkingRef.current = true;
     setChecking(true);
+    setStatus("running");
+    setError(null);
     try {
       const next = await checkSetup(expectedGame);
       if (currentRequest === request.current && currentGame.current === expectedGame) {
         setResult(next);
+        setStatus("successful");
       }
-    } catch (error) {
+    } catch (caught) {
       if (currentRequest === request.current && currentGame.current === expectedGame) {
-        announce(errorMessage(error), "error");
+        const message = errorMessage(caught);
+        setError(message);
+        setStatus("failed");
+        announce(message, "error");
       }
     } finally {
       if (currentRequest === inFlightRequest.current) {
@@ -43,7 +53,9 @@ export function useSetupCheck(
   useEffect(() => {
     request.current += 1;
     setResult(null);
+    setError(null);
+    setStatus("idle");
   }, [game, currentSetupKey]);
 
-  return { checking, result, run };
+  return { checking, error, result, status, run };
 }
