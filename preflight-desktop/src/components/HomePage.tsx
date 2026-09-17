@@ -64,6 +64,7 @@ interface HomePageProps {
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
   onLaunchWithoutPreparing: () => void;
+  onRestoreRecommended: () => void;
   stoppingGame: boolean;
   forceStopAvailable: boolean;
   onStopGame: () => void;
@@ -107,6 +108,7 @@ export function HomePage({
   onChooseInstall,
   onPrimaryLaunch,
   onLaunchWithoutPreparing,
+  onRestoreRecommended,
   stoppingGame,
   forceStopAvailable,
   onStopGame,
@@ -359,12 +361,17 @@ export function HomePage({
             </div>
           ) : null}
           {isReady ? (
-            <div className="launch-console__status-line home-hud-layer">
+            <div className="launch-console__status-line">
               {status !== "running" && status !== "launching" && statusLabel ? (
                 <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`}>
                   {settledReady ? <CheckIcon /> : <SparklesIcon />}
                   {statusLabel}
                 </div>
+              ) : null}
+              {status !== "running" && status !== "launching" && optimizationPreset === "off" ? (
+                <button className="status-chip" type="button" onClick={onRestoreRecommended}>
+                  Restore Recommended
+                </button>
               ) : null}
               {status !== "running" && status !== "launching" && (modBlockingCount > 0 || modWarningCount > 0) ? (
                 <button className="status-chip status-chip--mod-attention" type="button" onClick={() => onNavigate("mods")}>
@@ -375,7 +382,7 @@ export function HomePage({
               ) : null}
               {hasPlaytime ? (
                 <button
-                  className="home-display-toggle"
+                  className="home-display-toggle home-hud-layer"
                   type="button"
                   aria-label="Playtime"
                   title={playtimeVisible ? "Hide time" : "Show time"}
@@ -390,7 +397,7 @@ export function HomePage({
                 </button>
               ) : null}
               <button
-                className="home-display-toggle"
+                className="home-display-toggle home-hud-layer"
                 type="button"
                 aria-label="Ship"
                 title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
@@ -404,7 +411,7 @@ export function HomePage({
                 <ShipIcon />
               </button>
               <button
-                className="home-options-toggle"
+                className={`home-options-toggle${launchSettingsDirty ? "" : " home-hud-layer"}`}
                 type="button"
                 aria-expanded={optionsOpen}
                 onClick={toggleOptions}
