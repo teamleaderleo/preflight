@@ -1825,21 +1825,33 @@ test("help remains a permanent primary route", async () => {
  */
 test("help performs its fixes instead of only pointing at other pages", async () => {
   const user = userEvent.setup();
-  render(<App />);
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+  try {
+    render(<App />);
 
-  await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Help" }));
-  await screen.findByRole("heading", { name: "Common fixes", level: 2 });
+    await screen.findByText("Ready");
+    await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("recommended"));
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    await screen.findByRole("heading", { name: "Common fixes", level: 2 });
 
-  await user.click(screen.getByRole("button", { name: "Try without optimizations" }));
-  expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText("Optimizations off")).toBeVisible();
-  expect(visibleText("Go to launch")).toHaveLength(0);
-  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
+    await user.click(screen.getByRole("button", { name: "Open Speed" }));
+    expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Help" }));
 
-  await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Open Speed" }));
-  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Launch once with optimizations off" }));
+    await waitFor(() => expect(game).toHaveBeenCalledWith(
+      "/Applications/Starsector",
+      "off",
+      [],
+      "minimize",
+      false,
+      false,
+    ));
+    expect(await screen.findByRole("heading", { name: "Running", level: 1 })).toBeInTheDocument();
+    expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("recommended");
+  } finally {
+    game.mockRestore();
+  }
 });
 
 test("cancelling an installation change stays in Help and a valid change returns Home", async () => {
