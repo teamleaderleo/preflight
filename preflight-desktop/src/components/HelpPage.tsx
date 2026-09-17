@@ -19,7 +19,7 @@ interface HelpPageProps {
   diagnostics: DiagnosticsState;
   operationBlocked: boolean;
   optimizationPreset: OptimizationPreset;
-  onTurnOffOptimizations: () => void;
+  onLaunchWithoutOptimizations: () => void;
   onChooseInstall: () => void;
   onNavigate: (page: Page) => void;
 }
@@ -32,7 +32,7 @@ export function HelpPage({
   diagnostics,
   operationBlocked,
   optimizationPreset,
-  onTurnOffOptimizations,
+  onLaunchWithoutOptimizations,
   onChooseInstall,
   onNavigate,
 }: HelpPageProps) {
@@ -101,10 +101,11 @@ export function HelpPage({
           <li>
             <div>
               <strong>Starsector won’t open</strong>
+              {optimizationPreset === "off" ? null : <p>Your usual optimization setting will apply to later launches.</p>}
             </div>
             {optimizationPreset === "off"
               ? <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Go to launch<ArrowIcon /></button>
-              : <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Try without optimizations<ArrowIcon /></button>}
+              : <button className="button button--quiet button--compact" type="button" onClick={onLaunchWithoutOptimizations} disabled={operationBlocked}>Launch once with optimizations off<ArrowIcon /></button>}
           </li>
         </ul>
       </section>
