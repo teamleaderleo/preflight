@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
-import type { SetupAnalysisResult, SetupFinding, useProfiles as UseProfilesType } from "../types";
+import type { SetupAnalysisResult, SetupFinding } from "../types";
 import type { useProfiles } from "../useProfiles";
 import type { useSetupCheck } from "../useSetupCheck";
 import { ProfilesPage } from "./ProfilesPage";
