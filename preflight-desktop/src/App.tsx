@@ -681,6 +681,7 @@ export default function App() {
             launcherSettingsSaving={launcher.saving}
             launchSettingsDirty={launcher.dirty}
             operationBlocked={operationBlocked}
+            blockedReason={activeOperation?.reason ?? null}
             launchSettingsEditingBlocked={launchSettingsEditingBlocked}
             launchSettingsSaveBlocked={launchSettingsSaveBlocked}
             launchSettingsSaveBlockReason={launchSettingsSaveBlockReason}

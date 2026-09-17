@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { BenchmarkPage, BenchmarkResult } from "./BenchmarkPage";
@@ -121,6 +121,7 @@ test("describes the benchmark as two Preflight launches with only optimizations 
   );
 
   expect(screen.getByText(/It compares startup and, when the route reaches campaign, settled frame pacing/)).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("About the benchmark"));
   expect(screen.getByLabelText("About the benchmark")).toHaveAccessibleDescription(/Both runs use Preflight with the same installation and mod setup/);
   expect(screen.getByRole("heading", { name: "Optimizations off → on" })).toBeInTheDocument();
   expect(screen.getByText(/100\.00s with optimizations off/)).toBeInTheDocument();

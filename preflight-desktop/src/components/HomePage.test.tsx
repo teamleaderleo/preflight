@@ -304,8 +304,8 @@ test("Home exposes direct display controls without conflicting compact and playt
   await user.click(screen.getByRole("button", { name: "Pause ship rotation" }));
   expect(screen.getByRole("button", { name: "Resume ship rotation" })).toHaveAttribute("aria-pressed", "true");
 
-  const playtime = screen.getByRole("button", { name: "Playtime" });
-  const ship = screen.getByRole("button", { name: "Ship" });
+  const playtime = screen.getByRole("button", { name: "Hide recorded playtime" });
+  const ship = screen.getByRole("button", { name: "Hide display ship" });
   const options = screen.getByRole("button", { name: "Options" });
   expect(playtime).toHaveClass("home-hud-layer");
   expect(ship).toHaveClass("home-hud-layer");

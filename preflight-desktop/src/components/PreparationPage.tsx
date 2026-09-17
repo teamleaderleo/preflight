@@ -212,10 +212,10 @@ export function PreparationPage({
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>
         <div className="storage-summary-row">
-          <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "…"}</strong><span className="storage-files">Prepared data</span></div>
-          <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "…"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
+          <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : <span role="status">Checking…</span>}</strong><span className="storage-files">Prepared data</span></div>
+          <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : <span role="status">Checking…</span>}</strong><small>Old sessions can be removed without slowing launches.</small></div>
           {/* The temporary build requirement matters before preparation, not on every launch. */}
-          {!profilePrepared || preparing ? <div><span>Space needed while preparing</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "…"}</strong><small>Includes temporary build files and free-space reserve.</small></div> : null}
+          {!profilePrepared || preparing ? <div><span>Space needed while preparing</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : <span role="status">Checking…</span>}</strong><small>Includes temporary build files and free-space reserve.</small></div> : null}
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -232,9 +232,9 @@ export function PreparationPage({
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
             {storagePlanApplies(textureStorage) && (preparationPlan?.reusableLooseBytes ?? 0) > 0 ? <div><span>Compatible prepared texture data on disk</span><strong>{formatBytes(preparationPlan?.reusableLooseBytes ?? 0)}</strong><small>Compatible texture blobs already present; this count can include alternate encodings that remain on disk while preparation uses another.</small></div> : null}
-            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>Will be reused</strong><small>This profile’s texture pack is ready, so it doesn’t need to be rebuilt.</small></div> : null}
-            <div><span>Finished texture data</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes) : "…"}</strong><small>Preflight removes the temporary copies when preparation finishes.</small></div>
-            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
+            {storagePlanApplies(textureStorage) && preparationPlan?.packHit ? <div><span>Current profile texture pack</span><strong>{formatBytes(preparationPlan.predictedPackBytes)} · ready</strong><small>This profile’s texture pack is ready, so it doesn’t need to be rebuilt.</small></div> : null}
+            <div><span>Finished texture data</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedRetainedTextureBytes ?? preparationPlan.predictedPackBytes) : <span role="status">Checking…</span>}</strong><small>Preflight removes the temporary copies when preparation finishes.</small></div>
+            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : <span role="status">Checking…</span>}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
         </details>
       </section>
