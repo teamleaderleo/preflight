@@ -1,9 +1,10 @@
 import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { HelpPage } from "./HelpPage";
 
-function props(): ComponentProps<typeof HelpPage> {
+function props(overrides: Partial<ComponentProps<typeof HelpPage>> = {}): ComponentProps<typeof HelpPage> {
   return {
     message: "",
     messageTone: "info",
@@ -29,9 +30,10 @@ function props(): ComponentProps<typeof HelpPage> {
     } as never,
     operationBlocked: false,
     optimizationPreset: "recommended",
-    onTurnOffOptimizations: vi.fn(),
+    onLaunchWithoutOptimizations: vi.fn(),
     onChooseInstall: vi.fn(),
     onNavigate: vi.fn(),
+    ...overrides,
   };
 }
 
@@ -43,4 +45,16 @@ test("explains the ordinary save and prepared-data boundary without hiding norma
   expect(boundary).toHaveTextContent("affect only Preflight’s cache");
   expect(boundary).toHaveTextContent("updates game preferences and makes a backup");
   expect(boundary).toHaveTextContent("Starsector and mods manage campaign saves");
+});
+
+test("offers one temporary optimizations-off launch without describing a preference change", async () => {
+  const user = userEvent.setup();
+  const onLaunchWithoutOptimizations = vi.fn();
+  render(<HelpPage {...props({ onLaunchWithoutOptimizations })} />);
+
+  expect(screen.queryByRole("button", { name: "Try without optimizations" })).not.toBeInTheDocument();
+  const action = screen.getByRole("button", { name: "Launch once with optimizations off" });
+  expect(screen.getByText(/usual optimization setting will apply to later launches/i)).toBeInTheDocument();
+  await user.click(action);
+  expect(onLaunchWithoutOptimizations).toHaveBeenCalledOnce();
 });
