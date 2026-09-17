@@ -135,6 +135,7 @@ function renderHome(
     onChooseInstall={vi.fn()}
     onPrimaryLaunch={vi.fn()}
     onLaunchWithoutPreparing={vi.fn()}
+    onRestoreRecommended={vi.fn()}
     stoppingGame={false}
     forceStopAvailable={false}
     onStopGame={vi.fn()}

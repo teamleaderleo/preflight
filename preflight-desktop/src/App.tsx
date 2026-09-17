@@ -690,6 +690,7 @@ export default function App() {
             optimizationPreset={optimizationPreset}
             onPrimaryLaunch={() => void primaryLaunch()}
             onLaunchWithoutPreparing={() => void launchWithoutPreparing()}
+            onRestoreRecommended={() => setOptimizationPreset("recommended")}
             stoppingGame={stoppingGame}
             forceStopAvailable={forceStopAvailable}
             onStopGame={() => void stopRunningGame()}
@@ -771,9 +772,9 @@ export default function App() {
             diagnostics={diagnostics}
             operationBlocked={operationBlocked}
             optimizationPreset={optimizationPreset}
-            onTurnOffOptimizations={() => {
-              setOptimizationPreset("off");
+            onLaunchWithoutOptimizations={() => {
               navigate("home");
+              void launchWithoutPreparing();
             }}
             onChooseInstall={() => {
               void chooseInstall().then((changed) => {

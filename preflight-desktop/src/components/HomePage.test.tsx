@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
@@ -145,6 +145,7 @@ function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): Compon
     onChooseInstall: vi.fn(),
     onPrimaryLaunch: vi.fn(),
     onLaunchWithoutPreparing: vi.fn(),
+    onRestoreRecommended: vi.fn(),
     stoppingGame: false,
     forceStopAvailable: false,
     onStopGame: vi.fn(),
@@ -210,6 +211,7 @@ test("settled Home shows the installation and active named profile beside the la
   const installation = screen.getByLabelText("Installation /Applications/Starsector");
   expect(installation).toHaveAttribute("title", "/Applications/Starsector");
   expect(installation).toHaveAttribute("tabindex", "0");
+  expect(installation.closest(".home-launch-identity")).not.toHaveClass("home-hud-layer");
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
 });
 
@@ -218,6 +220,35 @@ test("settled Home omits an invented label for an unsaved active mod set", () =>
 
   expect(screen.queryByText("Current mod setup")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Installation /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("a mod warning that arrives after the settled HUD fades remains outside the fading layer", () => {
+  vi.useFakeTimers();
+  try {
+    const view = render(<HomePage {...props()} />);
+    const home = view.container.querySelector(".launch-console")!;
+
+    act(() => vi.advanceTimersByTime(2200));
+    expect(home).toHaveClass("home-hud--idle");
+
+    view.rerender(<HomePage {...props({
+      modReadiness: {
+        format: "starsector-preflight-mod-readiness-v1",
+        ready: true,
+        counts: { blocking: 0, warning: 1, info: 0, unknown: 0 },
+        findings: [],
+        modDirectories: 83,
+        metadataBytes: 131_072,
+        elapsedMillis: 6,
+      },
+    })} />);
+
+    const warning = screen.getByRole("button", { name: "1 mod warning" });
+    expect(warning.closest(".launch-console__status-line")).not.toHaveClass("home-hud-layer");
+    expect(home).toHaveClass("home-hud--idle");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("Home surfaces a broken mod setup without blocking launch", async () => {
@@ -239,6 +270,16 @@ test("Home surfaces a broken mod setup without blocking launch", async () => {
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "2 mod problems" }));
   expect(onNavigate).toHaveBeenCalledWith("mods");
+});
+
+test("persistent optimizations-off state stays visible and can restore Recommended directly", async () => {
+  const user = userEvent.setup();
+  const onRestoreRecommended = vi.fn();
+  render(<HomePage {...props({ optimizationPreset: "off", onRestoreRecommended })} />);
+
+  expect(screen.getByText("Optimizations off").closest(".launch-console__status-line")).not.toHaveClass("home-hud-layer");
+  await user.click(screen.getByRole("button", { name: "Restore Recommended" }));
+  expect(onRestoreRecommended).toHaveBeenCalledOnce();
 });
 
 test("Home exposes direct display controls without conflicting compact and playtime states", async () => {
@@ -265,6 +306,10 @@ test("Home exposes direct display controls without conflicting compact and playt
 
   const playtime = screen.getByRole("button", { name: "Playtime" });
   const ship = screen.getByRole("button", { name: "Ship" });
+  const options = screen.getByRole("button", { name: "Options" });
+  expect(playtime).toHaveClass("home-hud-layer");
+  expect(ship).toHaveClass("home-hud-layer");
+  expect(options).toHaveClass("home-hud-layer");
   expect(playtime).toHaveAttribute("aria-pressed", "true");
   expect(ship).toHaveAttribute("aria-pressed", "true");
   await user.click(playtime);
@@ -294,7 +339,9 @@ test("closed Options keeps pending launch-setting changes visible", () => {
   window.localStorage.clear();
   render(<HomePage {...props({ launchSettingsDirty: true })} />);
 
-  expect(screen.getByRole("button", { name: "Options · changed" })).toHaveAttribute("aria-expanded", "false");
+  const options = screen.getByRole("button", { name: "Options · changed" });
+  expect(options).toHaveAttribute("aria-expanded", "false");
+  expect(options).not.toHaveClass("home-hud-layer");
 });
 
 test("a launch error keeps the retry target visible beside its recovery action", () => {
