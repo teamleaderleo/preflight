@@ -8,7 +8,7 @@ interface HomeLaunchIdentityProps {
 
 export function HomeLaunchIdentity({ installRoot, profileName, onOpenProfiles }: HomeLaunchIdentityProps) {
   return (
-    <div className="home-launch-identity home-hud-layer">
+    <div className="home-launch-identity">
       {profileName ? (
         <button
           className="home-launch-profile"
