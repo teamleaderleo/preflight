@@ -29,6 +29,8 @@ test("runs the deep setup check only when the player asks", async () => {
   expect(check).toHaveBeenCalledOnce();
   expect(check).toHaveBeenCalledWith("/game");
   expect(result.current.result).toEqual(cleanResult);
+  expect(result.current.status).toBe("successful");
+  expect(result.current.error).toBeNull();
   expect(announce).not.toHaveBeenCalled();
 });
 
@@ -44,9 +46,11 @@ test("does not launch two checks from repeated clicks", async () => {
     void result.current.run();
   });
   expect(check).toHaveBeenCalledOnce();
+  expect(result.current.status).toBe("running");
 
   await act(async () => finish?.(cleanResult));
   await waitFor(() => expect(result.current.checking).toBe(false));
+  expect(result.current.status).toBe("successful");
 });
 
 test("drops a result when the enabled mod list changes", async () => {
@@ -61,6 +65,8 @@ test("drops a result when the enabled mod list changes", async () => {
 
   rerender({ setupKey: "alpha\0beta" });
   expect(result.current.result).toBeNull();
+  expect(result.current.status).toBe("idle");
+  expect(result.current.error).toBeNull();
   expect(check).toHaveBeenCalledOnce();
 });
 
@@ -73,5 +79,25 @@ test("window focus preserves an explicit setup result", async () => {
 
   act(() => window.dispatchEvent(new Event("focus")));
   expect(result.current.result).toEqual(cleanResult);
+  expect(result.current.status).toBe("successful");
   expect(check).toHaveBeenCalledOnce();
+});
+
+test("a failed recheck retains the last successful result and labels the latest attempt failed", async () => {
+  const announce = vi.fn();
+  const check = vi.spyOn(bridge, "checkSetup")
+    .mockResolvedValueOnce(cleanResult)
+    .mockRejectedValueOnce(new Error("check unavailable"));
+  const { result } = renderHook(() => useSetupCheck("/game", "alpha", announce));
+
+  await act(async () => result.current.run());
+  expect(result.current.result).toEqual(cleanResult);
+  expect(result.current.status).toBe("successful");
+
+  await act(async () => result.current.run());
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(result.current.result).toEqual(cleanResult);
+  expect(result.current.status).toBe("failed");
+  expect(result.current.error).toContain("check unavailable");
+  expect(announce).toHaveBeenCalledWith(expect.stringContaining("check unavailable"), "error");
 });
