@@ -39,7 +39,15 @@ export function BattleSizeInput({ id, label, value, min, max, disabled = false, 
     step="10"
     value={text}
     disabled={disabled}
-    onChange={(event) => setText(event.target.value)}
+    onChange={(event) => {
+      const nextText = event.target.value;
+      setText(nextText);
+      if (!nextText.trim()) return;
+      const candidate = Number(nextText);
+      if (Number.isFinite(candidate) && candidate >= min && candidate <= max && candidate !== value) {
+        onCommit(candidate);
+      }
+    }}
     onBlur={commit}
     onKeyDown={(event) => {
       if (event.key === "Enter") event.currentTarget.blur();
