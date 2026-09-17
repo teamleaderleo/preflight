@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ShieldIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
@@ -6,7 +6,7 @@ import { formatSavedAt, shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
 import type { useSetupCheck } from "../useSetupCheck";
 import { filterProfileNames, useProfileSearch } from "../useProfileSearch";
-import type { NoticeTone } from "../types";
+import type { NoticeTone, SetupFindingSeverity } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
 type SetupCheckState = ReturnType<typeof useSetupCheck>;
@@ -14,6 +14,13 @@ type SetupCheckState = ReturnType<typeof useSetupCheck>;
 type ReviewReturnTarget = {
   profileName: string;
   element: HTMLElement;
+};
+
+const FINDING_SEVERITY_ORDER: Record<SetupFindingSeverity, number> = {
+  blocking: 0,
+  warning: 1,
+  unknown: 2,
+  info: 3,
 };
 
 interface ProfilesPageProps {
@@ -26,6 +33,9 @@ interface ProfilesPageProps {
 
 export function ProfilesPage({ message, messageTone, profilesState, setupCheck, operationBlocked }: ProfilesPageProps) {
   const profileSearch = useProfileSearch();
+  const [setupFindingsExpanded, setSetupFindingsExpanded] = useState(false);
+  const [readinessExpanded, setReadinessExpanded] = useState(false);
+  const [copyFindingsState, setCopyFindingsState] = useState<"idle" | "copied" | "error">("idle");
   const activationReviewRef = useRef<HTMLElement>(null);
   const mutationReviewRef = useRef<HTMLElement>(null);
   const activationReturnRef = useRef<ReviewReturnTarget | null>(null);
@@ -81,11 +91,14 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
   const blockingModProblems = modReadiness?.counts.blocking ?? 0;
   const otherModProblems = (modReadiness?.counts.warning ?? 0) + (modReadiness?.counts.unknown ?? 0);
   const visibleModProblems = modReadiness?.findings.filter((finding) => finding.severity !== "info") ?? [];
+  const shownModProblems = readinessExpanded ? visibleModProblems : visibleModProblems.slice(0, 8);
   const modProblemCount = blockingModProblems + otherModProblems;
   const modProblemLabel = blockingModProblems > 0
     ? `${blockingModProblems} mod problem${blockingModProblems === 1 ? "" : "s"}`
     : `${otherModProblems} mod warning${otherModProblems === 1 ? "" : "s"}`;
-  const checkedFindings = setupCheck.result?.findings.filter((finding) => finding.severity !== "info") ?? [];
+  const checkedFindings = [...(setupCheck.result?.findings ?? [])].sort((left, right) =>
+    FINDING_SEVERITY_ORDER[left.severity] - FINDING_SEVERITY_ORDER[right.severity]);
+  const shownCheckedFindings = setupFindingsExpanded ? checkedFindings : checkedFindings.slice(0, 20);
   const checkedProblemCount = setupCheck.result?.counts.blocking ?? 0;
   const checkedReviewCount = (setupCheck.result?.counts.warning ?? 0)
     + (setupCheck.result?.counts.unknown ?? 0);
@@ -97,6 +110,20 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
       : setupCheckIncomplete
         ? "Check incomplete"
         : "No problems found";
+  const retainedResult = Boolean(setupCheck.result)
+    && (setupCheck.status === "running" || setupCheck.status === "failed");
+  const setupCheckHeading = retainedResult
+    ? `Previous check: ${setupCheckLabel.charAt(0).toLowerCase()}${setupCheckLabel.slice(1)}`
+    : setupCheckLabel;
+
+  useEffect(() => {
+    setSetupFindingsExpanded(false);
+    setCopyFindingsState("idle");
+  }, [setupCheck.result]);
+
+  useEffect(() => {
+    setReadinessExpanded(false);
+  }, [modReadiness]);
 
   useEffect(() => {
     if (activationPlan) {
@@ -141,6 +168,24 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
     if (returnTarget?.element.isConnected) returnTarget.element.focus();
   };
 
+  const copySetupFindings = async () => {
+    if (!setupCheck.result) return;
+    const lines = [
+      `Preflight mod check: ${setupCheckLabel}`,
+      ...checkedFindings.map((finding) => {
+        const action = finding.actions[0] ? ` — ${finding.actions[0]}` : "";
+        return `[${finding.severity.toUpperCase()}] ${finding.summary}${action}`;
+      }),
+      ...setupCheck.result.unavailableProviders.map((provider) => `[UNKNOWN] ${provider} check unavailable`),
+    ];
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setCopyFindingsState("copied");
+    } catch {
+      setCopyFindingsState("error");
+    }
+  };
+
   return (
     <div className="profiles-page">
       <NoticeBanner message={message} tone={messageTone} />
@@ -153,28 +198,57 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
         </div>
         {setupCheck.result ? (
           <div className={`setup-check-result ${checkedProblemCount > 0 ? "setup-check-result--blocking" : checkedReviewCount > 0 || setupCheckIncomplete ? "setup-check-result--warning" : "setup-check-result--ready"}`} role="status">
-            <strong>{setupCheckLabel}</strong>
-            {checkedFindings.length > 0 ? (
-              <ul>{checkedFindings.slice(0, 20).map((finding) => (
+            <strong>{setupCheckHeading}</strong>
+            {setupCheck.status === "running" ? <small>Checking your current setup… Previous results remain available below.</small> : null}
+            {setupCheck.status === "failed" ? (
+              <div>
+                <small>The latest check couldn’t finish.</small>{" "}
+                <button className="text-button" type="button" onClick={() => void setupCheck.run()} disabled={operationBlocked}>Try again</button>
+              </div>
+            ) : null}
+            {shownCheckedFindings.length > 0 ? (
+              <ul>{shownCheckedFindings.map((finding) => (
                 <li key={`${finding.code}:${finding.summary}`}>
                   <span>{finding.summary}</span>
                   {finding.actions[0] ? <small>{finding.actions[0]}</small> : null}
                 </li>
               ))}</ul>
             ) : null}
-            {checkedFindings.length > 20 ? <small>{checkedFindings.length - 20} more</small> : null}
+            {checkedFindings.length > 20 ? (
+              <button className="button button--quiet button--compact" type="button" onClick={() => setSetupFindingsExpanded((current) => !current)}>
+                {setupFindingsExpanded ? "Show fewer findings" : `Show all ${checkedFindings.length} findings`}
+              </button>
+            ) : null}
+            {checkedFindings.length > 0 ? (
+              <button className="button button--quiet button--compact" type="button" onClick={() => void copySetupFindings()}>
+                {copyFindingsState === "copied" ? "Findings copied" : copyFindingsState === "error" ? "Try copying again" : "Copy findings"}
+              </button>
+            ) : null}
+            {copyFindingsState === "error" ? <small role="alert">Clipboard access failed. The findings remain available above.</small> : null}
             {setupCheck.result.unavailableProviders.length > 0 ? <small>Some checks couldn't finish. Try again after closing other mod tools.</small> : null}
+          </div>
+        ) : setupCheck.status === "running" ? (
+          <div className="setup-check-result" role="status"><strong>Checking your current setup…</strong></div>
+        ) : setupCheck.status === "failed" ? (
+          <div className="setup-check-result setup-check-result--warning" role="status">
+            <strong>Check couldn’t finish</strong>
+            <small>{setupCheck.error ?? "Try the check again."}</small>
+            <button className="button button--quiet button--compact" type="button" onClick={() => void setupCheck.run()} disabled={operationBlocked}>Try again</button>
           </div>
         ) : modProblemCount > 0 ? (
           <div className={`mod-readiness ${blockingModProblems > 0 ? "mod-readiness--blocking" : "mod-readiness--warning"}`}>
             <details>
               <summary>{modProblemLabel}<span>Review</span></summary>
               <ul>
-                {visibleModProblems.slice(0, 8).map((finding) => (
+                {shownModProblems.map((finding) => (
                   <li key={`${finding.code}:${finding.summary}`}><strong>{finding.summary}</strong></li>
                 ))}
               </ul>
-              {visibleModProblems.length > 8 ? <small>{visibleModProblems.length - 8} more</small> : null}
+              {visibleModProblems.length > 8 ? (
+                <button className="button button--quiet button--compact" type="button" onClick={() => setReadinessExpanded((current) => !current)}>
+                  {readinessExpanded ? "Show fewer findings" : `Show all ${visibleModProblems.length} findings`}
+                </button>
+              ) : null}
               <button className="button button--quiet button--compact" type="button" onClick={() => void refreshModReadiness()} disabled={modReadinessLoading}>
                 {modReadinessLoading ? "Checking…" : "Refresh"}
               </button>
