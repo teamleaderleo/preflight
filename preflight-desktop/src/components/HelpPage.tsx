@@ -230,7 +230,7 @@ export function HelpPage({
             </div>
           ) : null}
           {reportUploading ? (
-            <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes}>
+            <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes} aria-valuetext={`${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}>
               <span style={{ width: `${Math.min(100, diagnosticsExport.bytes > 0 ? reportUploadedBytes / diagnosticsExport.bytes * 100 : 0)}%` }} />
               <strong>{reportFinalizing ? "Received · finishing…" : reportCancelling ? "Stopping…" : `${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}</strong>
             </div>

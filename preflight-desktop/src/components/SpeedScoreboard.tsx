@@ -102,7 +102,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBe
           {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last Preflight launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
           <p className="scoreboard__prompt">Both runs use Preflight: the first keeps its optimizations off and the second turns them on.</p>
           <div className="scoreboard__actions">
-            <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
+            <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Run benchmark<ArrowIcon /></button>
             <PlaytimeCopyButton playtime={playtime} />
           </div>
         </div>
@@ -135,7 +135,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, lastRun, onOpenBe
           <small>Controlled comparison recorded {latestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}.</small>
         </div>
         <div className="scoreboard__actions">
-          <button className="button button--quiet button--compact" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure current setup</button>
+          <button className="button button--quiet button--compact" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Run benchmark again</button>
           <PlaytimeCopyButton playtime={playtime} />
           <small>Personal best recorded {bestMeasuredOn.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</small>
         </div>

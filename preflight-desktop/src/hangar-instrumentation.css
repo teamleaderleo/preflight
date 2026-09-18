@@ -148,7 +148,7 @@
   margin-top: 5px;
   color: var(--accent-strong);
   font-family: var(--font-data);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.12em;
@@ -303,7 +303,7 @@
   padding: 12px 10px;
   color: var(--ink-faint);
   font-family: var(--font-data);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .hangar-stage-controls {
@@ -408,7 +408,7 @@
   padding: 0;
   color: var(--ink-faint);
   font-family: var(--font-data);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.035em;
   white-space: nowrap;
@@ -438,7 +438,7 @@
   color: var(--accent-strong);
   background: transparent;
   font-family: var(--font-data);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;

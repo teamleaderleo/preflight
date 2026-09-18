@@ -36,13 +36,13 @@ export function GameSettingsPage({
     return (
       <div className="launch-page">
         <section className="card launch-loading">
-          {loading ? "Reading game settings…" : (
-            <>
+          {loading ? <p role="status">Reading game settings…</p> : (
+            <div role="alert">
               <p>Game settings unavailable</p>
               <button className="button button--quiet button--compact" type="button" onClick={onRefresh}>
                 Try again
               </button>
-            </>
+            </div>
           )}
         </section>
       </div>

@@ -19,8 +19,10 @@ export const INFO_TIP_MARGIN = 12;
  * app runs on. A portal sidesteps the question: the tooltip is a child of body, so no card is above
  * it and none can clip it.
  *
- * <p>It stays mounted and hidden rather than unmounting, so the id in aria-describedby always
- * resolves to a real element.
+ * <p>It stays mounted and hidden rather than unmounting, so the id remains stable.
+ * The trigger points at it only while open, so touch and screen-reader users
+ * don't sit on a hidden description, and tap/Escape controls the open state
+ * where hover can't reach.
  */
 export function InfoTip({ label, children }: InfoTipProps) {
   const tooltipId = useId();
@@ -76,7 +78,12 @@ export function InfoTip({ label, children }: InfoTipProps) {
         className="info-tip__trigger"
         type="button"
         aria-label={label}
-        aria-describedby={tooltipId}
+        aria-describedby={open ? tooltipId : undefined}
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
       >
         <span aria-hidden="true">i</span>
       </button>

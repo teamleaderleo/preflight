@@ -184,7 +184,7 @@ def main() -> int:
                 browser, args.base_url, width=1040, height=700, theme="light"
             )
             page.get_by_role("button", name="Speed").click()
-            page.get_by_role("button", name="Measure speed").click()
+            page.get_by_role("button", name=re.compile(r"Run benchmark")).click()
             page.get_by_role("heading", name="Benchmark", exact=True).wait_for()
             page.get_by_role("button", name="Run benchmark").wait_for()
             page.wait_for_timeout(100)
