@@ -81,6 +81,33 @@ test("a preparation estimate is visible only for its exact installation and prof
   plans.mockRestore();
 });
 
+test.each([
+  { storage: "fastest", scope: "full", prepared: true, expected: "fastest" },
+  { storage: "balanced", scope: "learned", prepared: true, expected: "compact" },
+  { storage: "balanced", scope: "full", prepared: false, expected: "minimal" },
+] as const)("restoring $expected storage does not start a plan for the old default", async (mode) => {
+  const game = "/game";
+  const base = await bridge.getPreparationPlan(game, "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cacheFor(game));
+  const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue({
+    format: "starsector-preflight-cache-health-v1", status: "ready",
+    profileFingerprint: "current", preparedTextures: mode.prepared, textureStorage: mode.storage,
+    textureScope: mode.scope, issues: [], repairBytes: 0, repairFiles: 0,
+  });
+  const plans = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue(base);
+  try {
+    const launch = vi.fn(async () => undefined);
+    const announce = vi.fn();
+    const { result, unmount } = renderHook(() => usePreparation(game, false, "recommended", launch, announce));
+    await waitFor(() => expect(result.current.profilePrepared).toBe(true));
+    expect(result.current.textureStorage).toBe(mode.expected);
+    expect(plans).not.toHaveBeenCalled();
+    unmount();
+  } finally {
+    cache.mockRestore(); health.mockRestore(); plans.mockRestore();
+  }
+});
+
 test("opening Speed yields first, cancels abandoned planning, and reuses the loaded plan", async () => {
   const game = "/game";
   const base = await bridge.getPreparationPlan(game, "balanced", 4);
