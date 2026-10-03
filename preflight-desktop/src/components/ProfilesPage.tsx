@@ -40,6 +40,8 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
   const mutationReviewRef = useRef<HTMLElement>(null);
   const activationReturnRef = useRef<ReviewReturnTarget | null>(null);
   const mutationReturnRef = useRef<ReviewReturnTarget | null>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const duplicateInputRef = useRef<HTMLInputElement>(null);
   const {
     activationPlan,
     mutationPlan,
@@ -83,6 +85,12 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
       : "Creates a new saved profile from the current enabled-mod order.";
   const savedProfiles = profiles?.profiles ?? [];
   const visibleProfiles = filterProfileNames(savedProfiles, profileSearch.query);
+  useEffect(() => {
+    if (renameTarget) renameInputRef.current?.focus();
+  }, [renameTarget]);
+  useEffect(() => {
+    if (duplicateTarget) duplicateInputRef.current?.focus();
+  }, [duplicateTarget]);
   const profileCount = profilesLoading
     ? "Checking…"
     : profileSearch.query.trim()
@@ -281,7 +289,16 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
                   <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {formatSavedAt(profile.savedAt)}</span>
                   {!profile.sameInstall ? <small>Saved for a different installation</small> : null}
-                  {profile.missingMods.length > 0 ? <small>Missing: {profile.missingMods.join(", ")}</small> : null}
+                  {profile.missingMods.length > 0 ? (
+                    profile.missingMods.length <= 3
+                      ? <small>Missing: {profile.missingMods.join(", ")}</small>
+                      : (
+                        <details className="profile-missing">
+                          <summary>Missing: {profile.missingMods.slice(0, 3).join(", ")} · {profile.missingMods.length - 3} more</summary>
+                          <small>{profile.missingMods.join(", ")}</small>
+                        </details>
+                      )
+                  ) : null}
                 </div>
                 <div className="profile-card__actions">
                   {!profile.active && profile.canActivate ? <button className="button button--quiet button--compact" type="button" onClick={(event) => {
@@ -313,7 +330,7 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
             <div className="profile-rename-editor" role="group" aria-label={`Rename ${renameTarget}`}>
               <label htmlFor="rename-profile">Rename {renameTarget}</label>
               <div>
-                <input id="rename-profile" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} maxLength={100} autoFocus />
+                <input id="rename-profile" ref={renameInputRef} value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} maxLength={100} />
                 <button className="button button--quiet button--compact" type="button" onClick={cancelRename}>Cancel</button>
                 <button className="button button--primary button--compact" type="button" onClick={submitRename} disabled={!renameDraft.trim() || renameDraft.trim() === renameTarget || profileBusy}>Review rename</button>
               </div>
@@ -323,7 +340,7 @@ export function ProfilesPage({ message, messageTone, profilesState, setupCheck, 
             <div className="profile-rename-editor" role="group" aria-label={`Duplicate ${duplicateTarget}`}>
               <label htmlFor="duplicate-profile">Duplicate {duplicateTarget} as</label>
               <div>
-                <input id="duplicate-profile" value={duplicateDraft} onChange={(event) => setDuplicateDraft(event.target.value)} maxLength={100} autoFocus />
+                <input id="duplicate-profile" ref={duplicateInputRef} value={duplicateDraft} onChange={(event) => setDuplicateDraft(event.target.value)} maxLength={100} />
                 <button className="button button--quiet button--compact" type="button" onClick={cancelDuplicate}>Cancel</button>
                 <button className="button button--primary button--compact" type="button" onClick={submitDuplicate} disabled={!duplicateDraft.trim() || duplicateDraft.trim() === duplicateTarget || profileBusy}>Review duplicate</button>
               </div>

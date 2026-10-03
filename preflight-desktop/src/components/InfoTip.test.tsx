@@ -38,9 +38,14 @@ function renderTip() {
 test("keeps the described tooltip mounted while closed", () => {
   const { trigger, tooltip } = renderTip();
 
-  expect(trigger.getAttribute("aria-describedby")).toBe(tooltip.id);
+  expect(trigger.getAttribute("aria-describedby")).toBeNull();
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
   expect(tooltip.classList.contains("info-tip__content--open")).toBe(false);
   expect(styles).toMatch(/\.info-tip__content\s*\{[^}]*position:\s*fixed;[^}]*visibility:\s*hidden;/s);
+
+  fireEvent.click(trigger);
+  expect(trigger).toHaveAttribute("aria-expanded", "true");
+  expect(trigger.getAttribute("aria-describedby")).toBe(tooltip.id);
 });
 
 test("registers scroll and resize placement work only while open", () => {

@@ -239,8 +239,8 @@ def assert_home_toggle_stability(page: Page, label: str) -> None:
         )
 
     before = scaffold()
-    ship = page.get_by_role("button", name="Ship", exact=True)
-    time = page.get_by_role("button", name="Playtime", exact=True)
+    ship = page.get_by_role("button", name=re.compile(r"(Hide|Show) display ship"))
+    time = page.get_by_role("button", name=re.compile(r"(Hide|Show) recorded playtime"))
     ship.click()
     page.locator(".home-flight-instrument").wait_for(state="hidden")
     after_ship = scaffold()
@@ -322,10 +322,10 @@ def assert_ship_moves(page: Page, label: str) -> None:
     if first == second:
         raise RuntimeError(f"{label}: ship did not rotate")
 
-    page.get_by_role("button", name="Ship", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"(Hide|Show) display ship")).click()
     canvas.wait_for(state="hidden")
     page.wait_for_timeout(160)
-    page.get_by_role("button", name="Ship", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"(Hide|Show) display ship")).click()
     canvas.wait_for(state="visible")
     resumed = canvas.evaluate("canvas => canvas.toDataURL()")
     page.wait_for_timeout(160)
@@ -670,7 +670,7 @@ def exercise_recovery_state(
     try:
         if scenario == "benchmark-unavailable":
             page.get_by_role("button", name="Speed", exact=True).click()
-            page.get_by_role("button", name="Measure speed", exact=True).click()
+            page.get_by_role("button", name=re.compile(r"Run benchmark")).click()
             page.get_by_role("button", name="Run benchmark", exact=True).click()
             page.get_by_text("Benchmark files are missing.", exact=False).wait_for()
             result = assert_page_width(page, label)
@@ -911,7 +911,7 @@ def main() -> int:
                         page.wait_for_function(
                             "document.querySelector('.launch-console--layout-settled')?.classList.contains('home-hud--visible')",
                         )
-                        page.get_by_role("button", name="Ship", exact=True).click()
+                        page.get_by_role("button", name=re.compile(r"(Hide|Show) display ship")).click()
                         page.locator(".home-flight-instrument").wait_for(state="hidden")
                         if not page.locator(".home-playtime").is_visible():
                             raise RuntimeError(f"{label} compact: hiding the ship also hid playtime")
@@ -919,7 +919,7 @@ def main() -> int:
                         assert_focus_stable(page, f"{label} compact")
                         capture(page, args.output_dir, f"home-compact-{label}.png")
 
-                        page.get_by_role("button", name="Playtime", exact=True).click()
+                        page.get_by_role("button", name=re.compile(r"(Hide|Show) recorded playtime")).click()
                         page.locator(".home-playtime").wait_for(state="hidden")
                         geometry[f"{label}-minimal"] = assert_home_geometry(page, f"{label} minimal")
                         assert_focus_stable(page, f"{label} minimal")
@@ -964,7 +964,7 @@ def main() -> int:
                                 capture(page, args.output_dir, f"page-{page_name.lower()}-{label}.png")
 
                         page.get_by_role("button", name="Speed", exact=True).click()
-                        page.get_by_role("button", name="Measure speed").click()
+                        page.get_by_role("button", name=re.compile(r"Run benchmark")).click()
                         page.get_by_role("heading", name="Benchmark", exact=True).wait_for()
                         geometry[f"{label}-page-benchmark"] = assert_page_width(
                             page,

@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 test("Hangar active values stay on the current palette", () => {
   expect(hangarStyles).toContain("var(--hangar-range, 0%)");
   expect(hangarStyles).toContain("var(--accent) 0 var(--hangar-range, 0%)");
-  expect(hangarStyles).toMatch(/\.hangar-control-group \.hangar-dial\s*\{[^}]*font-size:\s*10px;/s);
+  expect(hangarStyles).toMatch(/\.hangar-control-group \.hangar-dial\s*\{[^}]*font-size:\s*12px;/s);
   expect(hangarStyles).toMatch(/\.hangar-control-group \.hangar-dial > output\s*\{[^}]*color:\s*var\(--accent-strong\);/s);
   expect(hangarStyles).not.toMatch(/#[0-9a-f]{3,8}/i);
 });

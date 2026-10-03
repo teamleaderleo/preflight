@@ -44,7 +44,7 @@ test("keeps the personal best trophy while showing an unfavorable latest benchma
   expect(screen.getByText("Optimizations off")).toBeInTheDocument();
   expect(screen.getByText("Optimizations on")).toBeInTheDocument();
   expect(screen.queryByText("Normal")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Measure current setup/ })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /Run benchmark again/ })).toBeEnabled();
   expect(screen.queryByText(/matching launches/)).not.toBeInTheDocument();
 });
 
@@ -60,7 +60,7 @@ test("unmeasured startup uses a neutral figure instead of implying a multiplier"
   expect(screen.getByText("—")).toBeInTheDocument();
   expect(screen.queryByText("?×")).not.toBeInTheDocument();
   expect(screen.getByText(/Both runs use Preflight/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Measure speed/ })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /Run benchmark/ })).toBeEnabled();
 });
 
 test("keeps playtime session detail on hover and in the named accessible group while the copy utility stays icon-only", () => {

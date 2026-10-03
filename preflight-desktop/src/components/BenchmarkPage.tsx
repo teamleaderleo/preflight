@@ -90,13 +90,13 @@ export function BenchmarkPage({
             <InfoTip label="About the benchmark">Both runs use Preflight with the same installation and mod setup. The first keeps Preflight’s optimizations off; the second turns them on. Preflight closes only the Starsector process it started.</InfoTip>
           </div>
           <p>{isReady
-            ? "Both runs use Preflight: first with its optimizations off, then on. It compares startup and, when the route reaches campaign, settled frame pacing."
+            ? "It compares startup and, when the route reaches campaign, settled frame pacing."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady || desktopSmokeRunDirectory ? (
             <small>
               {isReady ? "Expect several minutes. Starsector opens and closes on its own." : null}
               {isReady && desktopSmokeRunDirectory ? " " : null}
-              {desktopSmokeRunDirectory ? `Saved to ${shortPath(desktopSmokeRunDirectory)}` : null}
+              {desktopSmokeRunDirectory ? <span title={desktopSmokeRunDirectory}>Saved to {shortPath(desktopSmokeRunDirectory)}</span> : null}
             </small>
           ) : null}
         </div>
@@ -121,14 +121,19 @@ export function BenchmarkPage({
           )}
           {nativeBlockReason ? <small id="benchmark-native-block">{nativeBlockReason}</small> : null}
           {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? (
-            <>
+            <div role="group" aria-label="Benchmark unavailable">
               <small>Benchmark files are missing. Reinstall Preflight or make a support file.</small>
               <button className="button button--quiet button--compact" type="button" onClick={onOpenHelp}>Open Help</button>
-            </>
+            </div>
           ) : null}
         </div>
       </section>
 
+      {!desktopBenchmarkComparison?.available ? (
+        <section className="card benchmark-empty" aria-label="No benchmark yet">
+          <p role="status">No benchmark yet. A full comparison takes several minutes while Starsector opens and closes on its own.</p>
+        </section>
+      ) : null}
       {desktopBenchmarkComparison?.available ? (
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">

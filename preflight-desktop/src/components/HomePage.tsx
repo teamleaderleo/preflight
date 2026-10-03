@@ -56,6 +56,7 @@ interface HomePageProps {
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
   operationBlocked: boolean;
+  blockedReason?: string | null;
   launchSettingsEditingBlocked: boolean;
   launchSettingsSaveBlocked: boolean;
   launchSettingsSaveBlockReason?: string;
@@ -100,6 +101,7 @@ export function HomePage({
   launcherSettingsSaving,
   launchSettingsDirty,
   operationBlocked,
+  blockedReason,
   launchSettingsEditingBlocked,
   launchSettingsSaveBlocked,
   launchSettingsSaveBlockReason,
@@ -284,6 +286,42 @@ export function HomePage({
                       ? "Optimizations off"
                       : null;
   const selectedHullIndex = instrumentHull.hulls.findIndex((hull) => hull.id === instrumentHull.selected.id);
+  const primaryBlocked = preparing
+    || cacheRepairing
+    || operationBlocked
+    || status === "loading"
+    || status === "error"
+    || cacheLoading
+    || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan);
+  const primaryLabel = status === "launching"
+    ? "Opening Starsector…"
+    : status === "running"
+      ? "Starsector is running"
+      : preparing
+        ? preparationPercent === null ? "Preparation in progress…" : "Preparing…"
+        : cacheRepairing
+          ? "Repairing prepared data…"
+          : cacheLoading
+            ? "Checking this mod setup…"
+            : cacheInspectionBlocked
+              ? "Review prepared data"
+              : cacheNeedsRepair
+                ? "Repair and launch"
+                : preparationPlanLoading && needsPreparation
+                  ? "Calculating space…"
+                  : storageBlocked
+                    ? "Prepare with less disk"
+                    : firstSetup
+                      ? "Set up and launch"
+                      : needsPreparation
+                        ? "Prepare and launch"
+                        : "Launch Starsector";
+  const showBlockedReason = operationBlocked
+    && !preparing
+    && !cacheRepairing
+    && status !== "launching"
+    && status !== "running"
+    && blockedReason;
   const cycleHull = (offset: number) => {
     if (instrumentHull.hulls.length < 2) return;
     const current = selectedHullIndex >= 0 ? selectedHullIndex : 0;
@@ -363,7 +401,7 @@ export function HomePage({
           {isReady ? (
             <div className="launch-console__status-line">
               {status !== "running" && status !== "launching" && statusLabel ? (
-                <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`}>
+                <div className={`status-chip ${settledReady ? "status-chip--ready" : ""}`} role="status">
                   {settledReady ? <CheckIcon /> : <SparklesIcon />}
                   {statusLabel}
                 </div>
@@ -384,7 +422,7 @@ export function HomePage({
                 <button
                   className="home-display-toggle home-hud-layer"
                   type="button"
-                  aria-label="Playtime"
+                  aria-label={playtimeVisible ? "Hide recorded playtime" : "Show recorded playtime"}
                   title={playtimeVisible ? "Hide time" : "Show time"}
                   aria-pressed={playtimeVisible}
                   onClick={(event) => {
@@ -399,7 +437,7 @@ export function HomePage({
               <button
                 className="home-display-toggle home-hud-layer"
                 type="button"
-                aria-label="Ship"
+                aria-label={homePresentation.mode === "compact" ? "Show display ship" : "Hide display ship"}
                 title={homePresentation.mode === "compact" ? "Show ship" : "Hide ship"}
                 aria-pressed={homePresentation.mode !== "compact"}
                 onClick={(event) => {
@@ -480,11 +518,13 @@ export function HomePage({
                     : cacheInspectionBlocked
                       ? () => onNavigate("speed")
                       : onPrimaryLaunch}
-                  disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
+                  disabled={primaryBlocked}
+                  aria-describedby={showBlockedReason ? "home-primary-block" : undefined}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review prepared data" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : firstSetup ? "Set up and launch" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{primaryLabel}</span>
                 </button>
+                {showBlockedReason ? <small id="home-primary-block" role="status">{blockedReason}. Other changes wait until it finishes.</small> : null}
                 {homeLayoutState === "settled" && homePresentation.mode !== "compact" ? (
                   <div className="home-motion-controls home-hud-layer" role="group" aria-label="Ship rotation">
                     <button
@@ -536,7 +576,7 @@ export function HomePage({
                     onClick={onLaunchWithoutPreparing}
                     disabled={operationBlocked}
                   >
-                    Launch normally
+                    Skip preparation
                   </button>
                 ) : null}
               </>

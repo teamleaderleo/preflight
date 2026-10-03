@@ -164,7 +164,7 @@ export function DesktopShell({
         onClick={(event) => {
           event.preventDefault();
           const workspace = pageViewport.current;
-          const recoveryAction = workspace?.querySelector<HTMLElement>("[role='alert'] button:not([disabled])");
+          const recoveryAction = workspace?.querySelector<HTMLElement>("[role='alert'] button:not([disabled]), [role='status'] button:not([disabled])");
           (recoveryAction ?? workspace)?.focus({ preventScroll: true });
         }}
       >

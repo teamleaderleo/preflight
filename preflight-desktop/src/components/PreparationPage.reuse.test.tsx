@@ -125,7 +125,7 @@ test("pack hit reserves reuse wording for the exact current profile pack", () =>
   expect(screen.getByText(/^.* of compatible prepared texture data is already on disk\. The current profile texture pack will be reused\.$/)).toBeInTheDocument();
   expect(screen.getByText("Compatible prepared texture data on disk")).toBeInTheDocument();
   expect(screen.getByText("Current profile texture pack")).toBeInTheDocument();
-  expect(screen.getByText("Will be reused")).toBeInTheDocument();
+  expect(screen.getByText(/· ready/)).toBeInTheDocument();
   expect(screen.getByText("This profile’s texture pack is ready, so it doesn’t need to be rebuilt.")).toBeInTheDocument();
   expect(screen.getByText("Finished texture data")).toBeInTheDocument();
 });

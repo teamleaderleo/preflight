@@ -375,7 +375,7 @@ test("a refused preparation still leaves an unoptimized way to launch the game",
 
   const launch = await screen.findByRole(
     "button",
-    { name: "Launch normally" },
+    { name: "Skip preparation" },
     { timeout: 3_000 },
   );
   expect(screen.getByText(/Preparation needs .* free; .* is available\./)).toBeInTheDocument();
@@ -417,7 +417,7 @@ test.each(["unsafe", "unknown"] as const)(
       status === "unsafe" ? "Prepared data location needs attention" : "Prepared data couldn't be checked",
     )).toBeInTheDocument();
     expect(screen.getByText(/Starsector, your mods, and your saves are unchanged/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Launch normally" }));
+    await user.click(screen.getByRole("button", { name: "Skip preparation" }));
 
     await waitFor(() => expect(game).toHaveBeenCalledWith(
       "/Applications/Starsector",
@@ -693,7 +693,7 @@ test("a failed normal launch retries with optimizations off", async () => {
 
   render(<App />);
 
-  await user.click(await screen.findByRole("button", { name: "Launch normally" }));
+  await user.click(await screen.findByRole("button", { name: "Skip preparation" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("launcher refused");
   await user.click(screen.getByRole("button", { name: "Try launch again" }));
 
@@ -846,7 +846,7 @@ test("page navigation reuses and resets the viewport that owns desktop scrolling
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   const viewport = container.querySelector<HTMLElement>(".page-viewport");
   expect(viewport).not.toBeNull();
   if (!viewport) return;
@@ -953,7 +953,7 @@ test("keyboard users can skip navigation and receive the new workspace heading",
   expect(screen.getByRole("link", { name: "Skip to workspace" })).toHaveFocus();
 
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   const heading = await screen.findByRole("heading", { name: "Benchmark", level: 1 });
   expect(heading).toHaveFocus();
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -1139,6 +1139,9 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });
+  expect(storageInfo).toHaveAttribute("aria-expanded", "false");
+  await user.click(storageInfo);
+  expect(storageInfo).toHaveAttribute("aria-expanded", "true");
   expect(document.getElementById(storageInfo.getAttribute("aria-describedby") ?? "")).toHaveAttribute("role", "tooltip");
 });
 
@@ -1362,7 +1365,7 @@ test("a benchmark cannot be queued behind an active cleanup", async () => {
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
   await user.click(await screen.findByRole("button", { name: "Free 4.72 GB" }));
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(await screen.findByRole("button", { name: "Run benchmark" })).toBeDisabled();
   cleanup.mockRestore();
@@ -1668,7 +1671,7 @@ test("the benchmark checks its packaged startup contract and launches without a 
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(probe).toHaveBeenCalledOnce();
@@ -1689,7 +1692,7 @@ test("a running benchmark exposes cooperative cancellation", async () => {
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(screen.getByRole("button", { name: "Help" }));
   expect(await screen.findByRole("button", { name: "Support file" })).toBeDisabled();
@@ -1718,7 +1721,7 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(await screen.findByText("Benchmark files are missing. Reinstall Preflight or make a support file.")).toBeInTheDocument();
@@ -1746,7 +1749,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   expect(await screen.findByText("Your startup")).toBeInTheDocument();
   expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
 
-  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await screen.findByText("Startup benchmark finished in browser preview.");
   await user.click(screen.getByRole("button", { name: "Speed" }));

@@ -233,7 +233,7 @@ test("Home keeps storage-mode taxonomy out of the default low-disk decision", ()
 
   const noteText = screen.getByText(/Preparation needs .* free; .* is available\./);
   const lessDisk = screen.getByRole("button", { name: "Prepare with less disk" });
-  expect(screen.getByRole("button", { name: "Launch normally" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Skip preparation" })).toBeEnabled();
   expect(document.body).not.toHaveTextContent(/Full preparation|Balanced|Fastest/);
 
   const note = noteText.closest(".launch-console__note");
@@ -258,7 +258,7 @@ test("Home removes the normal-launch fallback once the game is running", () => {
   renderHome(unsafePreparation, true, "running");
 
   expect(screen.getByRole("button", { name: "Stop Starsector" })).toBeEnabled();
-  expect(screen.queryByRole("button", { name: "Launch normally" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Skip preparation" })).toBeNull();
 });
 
 test("compact preparation note clears both ordinary and stacked action rows", () => {

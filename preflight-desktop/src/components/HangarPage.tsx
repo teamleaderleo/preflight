@@ -380,7 +380,7 @@ function HangarDial({ label, displayLabel = label, value, valueText, minimum, ma
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-      <output>{valueText}</output>
+      <output aria-hidden="true">{valueText}</output>
     </label>
   );
 }
