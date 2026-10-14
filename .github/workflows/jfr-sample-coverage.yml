@@ -29,7 +29,7 @@ jobs:
         run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-x64
       - name: Upload coverage evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jfr-sample-coverage-current-temurin-x64
           path: target/jfr-sample-coverage-current-x64
@@ -67,7 +67,7 @@ jobs:
         run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-current-rosetta
       - name: Upload coverage evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jfr-sample-coverage-current-temurin-rosetta
           path: |
@@ -109,7 +109,7 @@ jobs:
         run: bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage-zulu-17.0.10-rosetta
       - name: Upload coverage evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jfr-sample-coverage-zulu-17.0.10-rosetta
           path: |
